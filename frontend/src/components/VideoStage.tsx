@@ -7,6 +7,31 @@ import { LANDMARK_LABELS } from '../math';
 
 const imageCache = new Map<string, { img: HTMLImageElement; ready: boolean }>();
 
+const GLASS = 230;
+const GLASS_ZOOM = 10;
+
+interface GlassState {
+  left: number;
+  top: number;
+  size: number;
+  cx: number;
+  cy: number;
+  half: number;
+  anchor: { x: number; y: number };
+  cursor: { x: number; y: number };
+  frame: number;
+}
+
+interface FineDrag {
+  startX: number;
+  startY: number;
+  anchor: { x: number; y: number };
+  frame: number;
+  size: number;
+  cx: number;
+  cy: number;
+}
+
 function nearestFrame(pts: number[], time: number): number {
   if (pts.length === 0) return 0;
   let lo = 0;
@@ -27,7 +52,8 @@ export function VideoStage() {
   const [size, setSize] = useState({ width: 0, height: 0 });
   const drawRef = useRef<() => void>(() => undefined);
   const viewRef = useRef<StageView | null>(null);
-  const draggingRef = useRef(false);
+  const fineRef = useRef<FineDrag | null>(null);
+  const [glass, setGlass] = useState<GlassState | null>(null);
 
   const activeId = useStore((s) => s.activeId);
   const meta = useStore((s) => s.meta);
@@ -185,6 +211,77 @@ export function VideoStage() {
     return [(event.clientX - rect.left) / rect.width, (event.clientY - rect.top) / rect.height];
   };
 
+  /** Position of the selected point/landmark, used to anchor the in-place magnifier. */
+  const selectedRatio = (): { x: number; y: number; frame: number } | null => {
+    const state = useStore.getState();
+    const selection = state.selection;
+    if (!selection || !state.doc) return null;
+    if (selection.kind === 'point') {
+      for (const seq of state.doc.sequences) {
+        const traj = seq.trajectories.find((t) => t.id === selection.trajectoryId);
+        const point = traj?.points[selection.index];
+        if (point) return { x: point.x, y: point.y, frame: point.t };
+      }
+      return null;
+    }
+    const seq = state.doc.sequences.find(
+      (item) => state.currentFrame >= item.tStart && state.currentFrame <= item.tEnd,
+    );
+    const keyframe = seq?.court.keyframes.find((k) => k.t === state.currentFrame);
+    const landmark = keyframe?.landmarks[selection.landmarkId];
+    if (keyframe && landmark) return { x: landmark.x, y: landmark.y, frame: keyframe.t };
+    return null;
+  };
+
+  /** Opens the in-place magnifier and starts a sub-pixel (amplified) drag. */
+  const startFineDrag = (event: React.PointerEvent) => {
+    const state = useStore.getState();
+    const table = state.meta?.table;
+    const canvas = canvasRef.current;
+    if (!table || !canvas) return;
+    const found = selectedRatio();
+    if (!found) return;
+    const rect = canvas.getBoundingClientRect();
+    const half = Math.max(8, Math.round(GLASS / (2 * GLASS_ZOOM)));
+    const size = Math.max(16, Math.min(half * 2, Math.min(table.width, table.height)));
+    const cx = Math.max(
+      0,
+      Math.min(table.width - size, Math.round(found.x * table.width) - Math.floor(size / 2)),
+    );
+    const cy = Math.max(
+      0,
+      Math.min(table.height - size, Math.round(found.y * table.height) - Math.floor(size / 2)),
+    );
+    const screenX = found.x * rect.width;
+    const screenY = found.y * rect.height;
+    fineRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      anchor: { x: found.x, y: found.y },
+      frame: found.frame,
+      size,
+      cx,
+      cy,
+    };
+    setGlass({
+      left: Math.max(0, Math.min(rect.width - GLASS, screenX - GLASS / 2)),
+      top: Math.max(0, Math.min(rect.height - GLASS, screenY - GLASS / 2)),
+      size,
+      cx,
+      cy,
+      half,
+      anchor: { x: found.x, y: found.y },
+      cursor: { x: found.x, y: found.y },
+      frame: found.frame,
+    });
+  };
+
+  const stopFineDrag = () => {
+    fineRef.current = null;
+    setGlass(null);
+    useStore.getState().endDrag();
+  };
+
   const onPointerDown = (event: React.PointerEvent) => {
     const state = useStore.getState();
     if (!canvasRef.current || !viewRef.current) return;
@@ -197,6 +294,10 @@ export function VideoStage() {
     }
     if (state.tool === 'anchor' || state.tool === 'path') {
       state.placeWithTool({ x: ratio[0], y: ratio[1] });
+      if (useStore.getState().selection) {
+        canvasRef.current.setPointerCapture?.(event.pointerId);
+        startFineDrag(event);
+      }
       return;
     }
     const rect = canvasRef.current.getBoundingClientRect();
@@ -225,21 +326,38 @@ export function VideoStage() {
     }
     state.select(hit);
     state.beginDrag();
-    draggingRef.current = true;
     canvasRef.current.setPointerCapture?.(event.pointerId);
+    startFineDrag(event);
   };
 
   const onPointerMove = (event: React.PointerEvent) => {
+    const state = useStore.getState();
     const ratio = ratioFromEvent(event);
     hoverState.x = ratio[0];
     hoverState.y = ratio[1];
-    if (draggingRef.current) useStore.getState().dragTo({ x: ratio[0], y: ratio[1] });
+    const fine = fineRef.current;
+    const table = state.meta?.table;
+    if (!fine || !table) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const zoom = GLASS / fine.size;
+    const dx = (event.clientX - fine.startX) / zoom / rect.width;
+    const dy = (event.clientY - fine.startY) / zoom / rect.height;
+    // stay inside the magnified crop, so the crosshair never leaves the glass
+    const minX = fine.cx / table.width;
+    const maxX = (fine.cx + fine.size) / table.width;
+    const minY = fine.cy / table.height;
+    const maxY = (fine.cy + fine.size) / table.height;
+    const x = Math.min(maxX, Math.max(minX, fine.anchor.x + dx));
+    const y = Math.min(maxY, Math.max(minY, fine.anchor.y + dy));
+    state.dragTo({ x, y });
+    setGlass((current) => (current ? { ...current, cursor: { x, y } } : current));
   };
 
   const onPointerUp = () => {
-    if (!draggingRef.current) return;
-    draggingRef.current = false;
-    useStore.getState().endDrag();
+    if (!fineRef.current) return;
+    stopFineDrag();
   };
 
   const landmarks = view ? Object.keys(courtLandmarksOf(view)) : [];
@@ -299,6 +417,38 @@ export function VideoStage() {
         )}
         {landmarks.length === 0 && view?.sequence && showCourt && (
           <div className="stage-hint subtle">C pour poser les 4 coins du court</div>
+        )}
+        {glass && activeId && meta && (
+          <div
+            className="glass"
+            style={{ left: glass.left, top: glass.top, width: GLASS, height: GLASS }}
+          >
+            <img
+              src={api.loupeUrl(
+                activeId,
+                glass.frame,
+                glass.anchor.x * meta.table.width,
+                glass.anchor.y * meta.table.height,
+                glass.half,
+              )}
+              alt=""
+              draggable={false}
+            />
+            <div
+              className="glass-cross-v"
+              style={{
+                left: ((glass.cursor.x * meta.table.width - glass.cx) / glass.size) * GLASS,
+              }}
+            />
+            <div
+              className="glass-cross-h"
+              style={{
+                top: ((glass.cursor.y * meta.table.height - glass.cy) / glass.size) * GLASS,
+              }}
+            />
+            <span className="glass-zoom mono">×{Math.round(GLASS / glass.size)}</span>
+            <span className="glass-hint">glisse pour ajuster · relâche pour valider</span>
+          </div>
         )}
         {meta?.needsProxy && meta.proxy.state !== 'done' && (
           <div className="stage-proxy">

@@ -1086,3 +1086,67 @@ select {
   display: flex;
   gap: 3px;
 }
+
+/* ---------- loupe en place (placement / drag) ---------- */
+
+.glass {
+  position: absolute;
+  border: 2px solid var(--accent);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.75);
+  pointer-events: none;
+  z-index: 6;
+}
+
+.glass img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: pixelated;
+  user-select: none;
+}
+
+.glass-cross-v,
+.glass-cross-h {
+  position: absolute;
+  background: rgba(255, 80, 80, 0.85);
+}
+
+.glass-cross-v {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  transform: translateX(-0.5px);
+}
+
+.glass-cross-h {
+  left: 0;
+  right: 0;
+  height: 1px;
+  transform: translateY(-0.5px);
+}
+
+.glass-zoom {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  font-size: 10px;
+  color: var(--accent-2);
+}
+
+.glass-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 2px 0;
+  text-align: center;
+  font-size: 9.5px;
+  color: #c9d1d9;
+  background: rgba(0, 0, 0, 0.55);
+}

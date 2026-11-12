@@ -12,6 +12,7 @@ import {
   type Point,
 } from '../src/math';
 import { courtKnots, homographyAt, trajectoryPoint } from '../src/derive';
+import { segmentView } from '../src/render';
 import type { Court, Trajectory } from '../src/types';
 
 const data = fixtures as unknown as {
@@ -67,6 +68,85 @@ describe('homography parity', () => {
     const landmarks: Record<string, Point> = {};
     for (const [id, point] of Object.entries(item.landmarks)) landmarks[id] = point as Point;
     expect(precisionRatio(landmarks, item.ids)).toBeCloseTo(item.ratio, 9);
+  });
+});
+
+describe('segment fade around the current frame', () => {
+  const anchors = [0, 10, 20, 30];
+  const traj = {
+    id: 't1',
+    label: '',
+    needsReview: false,
+    notes: '',
+    tStart: 0,
+    tEnd: 30,
+    occlusions: [],
+    points: anchors.map((t, i) => ({
+      t,
+      x: 0.2 + i * 0.2,
+      y: 0.2 + i * 0.1,
+      kind: 'anchor' as const,
+      tag: 'other' as const,
+      source: 'manual' as const,
+    })),
+  } as Trajectory;
+
+  it('keeps the current segment full and fades the neighbours', () => {
+    const view = segmentView(traj, 15);
+    expect(view.count).toBe(3);
+    expect(view.index).toBe(1);
+    expect(view.opacity(1)).toBe(1);
+    expect(view.opacity(0)).toBeCloseTo(0.42);
+    expect(view.opacity(2)).toBeCloseTo(0.42);
+    expect(view.opacity(3)).toBe(0);
+  });
+
+  it('hides points outside the two neighbouring segments', () => {
+    const view = segmentView(traj, 15);
+    expect(view.from).toBe(0);
+    expect(view.to).toBe(30);
+    expect(view.pointVisible(15)).toBe(true);
+  });
+
+  it('dims the far segment when there are enough segments', () => {
+    const long = {
+      ...traj,
+      tEnd: 60,
+      points: [0, 10, 20, 30, 40, 50, 60].map((t, i) => ({
+        t,
+        x: 0.1 + i * 0.1,
+        y: 0.5,
+        kind: 'anchor' as const,
+        tag: 'other' as const,
+        source: 'manual' as const,
+      })),
+    } as Trajectory;
+    const view = segmentView(long, 35);
+    expect(view.count).toBe(6);
+    expect(view.index).toBe(3);
+    expect(view.opacity(3)).toBe(1);
+    expect(view.opacity(2)).toBeCloseTo(0.42);
+    expect(view.opacity(1)).toBeCloseTo(0.18);
+    expect(view.opacity(0)).toBe(0);
+    expect(view.from).toBe(10);
+    expect(view.to).toBe(60);
+    expect(view.pointVisible(5)).toBe(false);
+    expect(view.pointVisible(10)).toBe(true);
+  });
+
+  it('falls back to everything visible for a single-anchor échange', () => {
+    const single = {
+      ...traj,
+      tStart: 5,
+      tEnd: 5,
+      points: [
+        { t: 5, x: 0.5, y: 0.5, kind: 'anchor' as const, tag: 'other' as const, source: 'manual' as const },
+      ],
+    } as Trajectory;
+    const view = segmentView(single, 12);
+    expect(view.count).toBe(0);
+    expect(view.opacity(0)).toBe(1);
+    expect(view.pointVisible(99)).toBe(true);
   });
 });
 

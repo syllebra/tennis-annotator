@@ -91,9 +91,10 @@ une séquence, place le court, annote un trajet, recharge la page et vérifie la
    le panneau affiche le nom de chaque point (« Coin double gauche (proche) », …) et un schéma
    numéroté. Si la caméra bouge, se placer ailleurs et reposer.
 4. **Créer un échange** : **+ nouvel échange** à la frame de la balle.
-5. **Annoter** : **+ ancre** puis cliquer la balle ; **+ point de passage** puis cliquer la balle
-   entre deux impacts ; les tags d'impact sont des boutons (Main, Raquette, Sol, Filet, Autre, Bord) ;
-   **occultation** ouvre/ferme une plage masquée.
+5. **Annoter** : **+ ancre** puis appuyer sur la balle — une **loupe en place ×10** apparaît sous le
+   curseur, glisser pour ajuster au sub-pixel, relâcher pour valider. Même geste avec **+ point de
+   passage** entre deux impacts. Les tags d'impact sont des boutons (Main, Raquette, Sol, Filet,
+   Autre, Bord) ; **occultation** ouvre/ferme une plage masquée.
 6. **Vérifier** : bouton **vérif.** relit l'échange en boucle avec la courbe échantillonnée.
 7. **enregistrer** force la sauvegarde (autosave ~1 s de toute façon), `↶` / `↷` annulent.
 
@@ -104,9 +105,14 @@ Les raccourcis clavier existent pour aller plus vite (`Espace`, `←/→`, `A`, 
 horizontalement, boutons `−` / `+`, **tout** et **séquence** pour recadrer. La loupe a ses propres
 `−` / `+` et son curseur.
 
-La loupe permet un placement sub-pixel : cliquer dedans puis utiliser la croix directionnelle du
-panneau (pas 0,1 / 1 / 5 px par clic). L'image y est décodée en pleine résolution depuis le fichier
-original.
+**Lisibilité de l'échange** : le segment en cours d'annotation reste net, les deux segments
+précédents et suivants sont atténués, le reste de l'échange (courbe **et** points) est masqué. On
+garde ainsi le contexte immédiat sans être tiré par la fin du point.
+
+**Précision** : pendant le geste, la loupe en place est ancrée sur le point et la croix suit le
+déplacement amplifié ×10 ; on peut aussi cliquer dans la loupe du panneau droit et utiliser la croix
+directionnelle (pas 0,1 / 1 / 5 px par clic). L'image est décodée en pleine résolution depuis le
+fichier original.
 
 ## Ligne de commande
 
