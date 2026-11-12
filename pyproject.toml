@@ -1,0 +1,23 @@
+[project]
+name = "tennis-annotator"
+version = "0.1.0"
+description = "Local video annotation tool for tennis detection training"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "typer>=0.12",
+    "numpy>=2.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.3", "httpx>=0.27"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests", "cli/tests", "tests"]
+pythonpath = ["backend", "."]
+markers = ["slow: needs ffmpeg and takes a few seconds"]

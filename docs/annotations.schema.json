@@ -1,0 +1,387 @@
+{
+  "$defs": {
+    "Court": {
+      "additionalProperties": false,
+      "properties": {
+        "preset": {
+          "default": "doubles_corners",
+          "enum": [
+            "doubles_corners",
+            "singles_corners",
+            "service_boxes"
+          ],
+          "title": "Preset",
+          "type": "string"
+        },
+        "homographyLandmarks": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Homographylandmarks",
+          "type": "array"
+        },
+        "mirrored": {
+          "default": false,
+          "title": "Mirrored",
+          "type": "boolean"
+        },
+        "keyframes": {
+          "items": {
+            "$ref": "#/$defs/CourtKeyframe"
+          },
+          "title": "Keyframes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "homographyLandmarks"
+      ],
+      "title": "Court",
+      "type": "object"
+    },
+    "CourtKeyframe": {
+      "additionalProperties": false,
+      "properties": {
+        "t": {
+          "title": "T",
+          "type": "integer"
+        },
+        "source": {
+          "default": "manual",
+          "enum": [
+            "manual",
+            "auto"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "landmarks": {
+          "additionalProperties": {
+            "$ref": "#/$defs/XY"
+          },
+          "title": "Landmarks",
+          "type": "object"
+        }
+      },
+      "required": [
+        "t",
+        "landmarks"
+      ],
+      "title": "CourtKeyframe",
+      "type": "object"
+    },
+    "DocState": {
+      "additionalProperties": false,
+      "properties": {
+        "completed": {
+          "default": false,
+          "title": "Completed",
+          "type": "boolean"
+        },
+        "lastFrame": {
+          "default": 0,
+          "title": "Lastframe",
+          "type": "integer"
+        }
+      },
+      "title": "DocState",
+      "type": "object"
+    },
+    "Fingerprint": {
+      "additionalProperties": false,
+      "properties": {
+        "headSha256": {
+          "title": "Headsha256",
+          "type": "string"
+        },
+        "tailSha256": {
+          "title": "Tailsha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "headSha256",
+        "tailSha256"
+      ],
+      "title": "Fingerprint",
+      "type": "object"
+    },
+    "Occlusion": {
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "title": "From",
+          "type": "integer"
+        },
+        "to": {
+          "title": "To",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "title": "Occlusion",
+      "type": "object"
+    },
+    "Sequence": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        },
+        "tStart": {
+          "title": "Tstart",
+          "type": "integer"
+        },
+        "tEnd": {
+          "title": "Tend",
+          "type": "integer"
+        },
+        "court": {
+          "$ref": "#/$defs/Court"
+        },
+        "trajectories": {
+          "items": {
+            "$ref": "#/$defs/Trajectory"
+          },
+          "title": "Trajectories",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "tStart",
+        "tEnd",
+        "court"
+      ],
+      "title": "Sequence",
+      "type": "object"
+    },
+    "Trajectory": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        },
+        "needsReview": {
+          "default": false,
+          "title": "Needsreview",
+          "type": "boolean"
+        },
+        "notes": {
+          "default": "",
+          "title": "Notes",
+          "type": "string"
+        },
+        "tStart": {
+          "title": "Tstart",
+          "type": "integer"
+        },
+        "tEnd": {
+          "title": "Tend",
+          "type": "integer"
+        },
+        "occlusions": {
+          "items": {
+            "$ref": "#/$defs/Occlusion"
+          },
+          "title": "Occlusions",
+          "type": "array"
+        },
+        "points": {
+          "items": {
+            "$ref": "#/$defs/TrajectoryPoint"
+          },
+          "title": "Points",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "tStart",
+        "tEnd"
+      ],
+      "title": "Trajectory",
+      "type": "object"
+    },
+    "TrajectoryPoint": {
+      "additionalProperties": false,
+      "properties": {
+        "t": {
+          "title": "T",
+          "type": "integer"
+        },
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        },
+        "kind": {
+          "enum": [
+            "anchor",
+            "path"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "tag": {
+          "anyOf": [
+            {
+              "enum": [
+                "hand",
+                "racket",
+                "ground",
+                "net",
+                "other",
+                "boundary"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tag"
+        },
+        "source": {
+          "default": "manual",
+          "enum": [
+            "manual",
+            "auto"
+          ],
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "t",
+        "x",
+        "y",
+        "kind"
+      ],
+      "title": "TrajectoryPoint",
+      "type": "object"
+    },
+    "VideoInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "fileName": {
+          "title": "Filename",
+          "type": "string"
+        },
+        "sizeBytes": {
+          "title": "Sizebytes",
+          "type": "integer"
+        },
+        "width": {
+          "title": "Width",
+          "type": "integer"
+        },
+        "height": {
+          "title": "Height",
+          "type": "integer"
+        },
+        "rotation": {
+          "default": 0,
+          "title": "Rotation",
+          "type": "integer"
+        },
+        "fpsNominal": {
+          "title": "Fpsnominal",
+          "type": "number"
+        },
+        "vfr": {
+          "default": false,
+          "title": "Vfr",
+          "type": "boolean"
+        },
+        "frameCount": {
+          "title": "Framecount",
+          "type": "integer"
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/Fingerprint"
+        }
+      },
+      "required": [
+        "fileName",
+        "sizeBytes",
+        "width",
+        "height",
+        "fpsNominal",
+        "frameCount",
+        "fingerprint"
+      ],
+      "title": "VideoInfo",
+      "type": "object"
+    },
+    "XY": {
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "title": "XY",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "default": "tennis-annotator/annotations@1",
+      "title": "Schema",
+      "type": "string"
+    },
+    "version": {
+      "default": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "video": {
+      "$ref": "#/$defs/VideoInfo"
+    },
+    "state": {
+      "$ref": "#/$defs/DocState"
+    },
+    "sequences": {
+      "items": {
+        "$ref": "#/$defs/Sequence"
+      },
+      "title": "Sequences",
+      "type": "array"
+    }
+  },
+  "required": [
+    "video"
+  ],
+  "title": "Document",
+  "type": "object"
+}
