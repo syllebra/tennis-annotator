@@ -22,6 +22,12 @@ interface GlassState {
   frame: number;
 }
 
+interface FineTarget {
+  x: number;
+  y: number;
+  frame: number;
+}
+
 interface FineDrag {
   startX: number;
   startY: number;
@@ -30,6 +36,7 @@ interface FineDrag {
   size: number;
   cx: number;
   cy: number;
+  mode: 'selection' | 'wizard';
 }
 
 function nearestFrame(pts: number[], time: number): number {
@@ -234,12 +241,16 @@ export function VideoStage() {
   };
 
   /** Opens the in-place magnifier and starts a sub-pixel (amplified) drag. */
-  const startFineDrag = (event: React.PointerEvent) => {
+  const startFineDrag = (
+    event: React.PointerEvent,
+    target?: FineTarget,
+    mode: 'selection' | 'wizard' = 'selection',
+  ) => {
     const state = useStore.getState();
     const table = state.meta?.table;
     const canvas = canvasRef.current;
     if (!table || !canvas) return;
-    const found = selectedRatio();
+    const found = target ?? selectedRatio();
     if (!found) return;
     const rect = canvas.getBoundingClientRect();
     const half = Math.max(8, Math.round(GLASS / (2 * GLASS_ZOOM)));
@@ -262,6 +273,7 @@ export function VideoStage() {
       size,
       cx,
       cy,
+      mode,
     };
     setGlass({
       left: Math.max(0, Math.min(rect.width - GLASS, screenX - GLASS / 2)),
@@ -289,7 +301,33 @@ export function VideoStage() {
     hoverState.x = ratio[0];
     hoverState.y = ratio[1];
     if (state.wizard) {
+      const wizardBefore = state.wizard;
+      const stepId = wizardBefore.ids[wizardBefore.index]!;
       state.wizardClick({ x: ratio[0], y: ratio[1] });
+      const wizardAfter = useStore.getState().wizard;
+      canvasRef.current.setPointerCapture?.(event.pointerId);
+      if (wizardAfter) {
+        const placed = wizardAfter.taken[stepId];
+        if (placed) {
+          startFineDrag(
+            event,
+            { x: placed.x, y: placed.y, frame: state.currentFrame },
+            'wizard',
+          );
+        }
+        return;
+      }
+      // last corner: the keyframe is committed, grab the landmark for fine-tuning
+      const seq = viewRef.current?.sequence;
+      if (seq) {
+        state.select({ kind: 'landmark', landmarkId: stepId });
+        state.beginDrag();
+        startFineDrag(event, {
+          x: ratio[0],
+          y: ratio[1],
+          frame: useStore.getState().currentFrame,
+        });
+      }
       return;
     }
     if (state.tool === 'anchor' || state.tool === 'path') {
@@ -319,9 +357,7 @@ export function VideoStage() {
         const nearest = seq.court.keyframes.reduce((best, k) =>
           Math.abs(k.t - state.currentFrame) < Math.abs(best.t - state.currentFrame) ? k : best,
         );
-        state.syncFrame(nearest.t);
-        state.select(hit);
-        return;
+        state.jumpFrame(nearest.t);
       }
     }
     state.select(hit);
@@ -351,7 +387,8 @@ export function VideoStage() {
     const maxY = (fine.cy + fine.size) / table.height;
     const x = Math.min(maxX, Math.max(minX, fine.anchor.x + dx));
     const y = Math.min(maxY, Math.max(minY, fine.anchor.y + dy));
-    state.dragTo({ x, y });
+    if (fine.mode === 'wizard') state.wizardMove({ x, y });
+    else state.dragTo({ x, y });
     setGlass((current) => (current ? { ...current, cursor: { x, y } } : current));
   };
 

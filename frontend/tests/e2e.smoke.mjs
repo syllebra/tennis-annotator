@@ -64,7 +64,18 @@ const corners = [
   [0.38, 0.35],
 ];
 for (let i = 0; i < corners.length; i++) {
-  await clickStage(corners[i][0], corners[i][1]);
+  const px = box.x + box.width * corners[i][0];
+  const py = box.y + box.height * corners[i][1];
+  await page.mouse.move(px, py);
+  await page.mouse.down();
+  await page.waitForTimeout(300);
+  if (!(await page.locator('.glass').count())) {
+    throw new Error(`in-place magnifier missing while placing court corner ${i + 1}`);
+  }
+  await page.mouse.move(px + 24, py - 9, { steps: 4 });
+  await page.waitForTimeout(150);
+  await page.mouse.up();
+  await page.waitForTimeout(200);
   if (i < corners.length - 1 && !(await text('.wizard-head')).includes(String(i + 2))) {
     throw new Error(`wizard did not advance to step ${i + 2}`);
   }

@@ -80,6 +80,7 @@ interface AppState {
   notify: (message: string | null) => void;
 
   setFrame: (frame: number) => void;
+  jumpFrame: (frame: number) => void;
   stepFrame: (delta: number) => void;
   syncFrame: (frame: number) => void;
   setTool: (tool: Tool) => void;
@@ -102,6 +103,7 @@ interface AppState {
   startCourtWizard: () => void;
   cancelWizard: () => void;
   wizardClick: (point: XY) => void;
+  wizardMove: (point: XY) => void;
   deleteCourtKeyframe: () => void;
   setCourtPreset: (preset: Sequence['court']['preset']) => void;
   toggleMirror: () => void;
@@ -394,6 +396,19 @@ export const useStore = create<AppState>((set, get) => {
 
     setFrame: (frame) => scheduleFrame(frame, true),
 
+    /** Immediate, non-coalesced jump — used when snapping to a court keyframe. */
+    jumpFrame: (frame) => {
+      const state = get();
+      pendingFrame = null;
+      if (frameRaf) {
+        window.cancelAnimationFrame(frameRaf);
+        frameRaf = 0;
+      }
+      const max = Math.max(0, (state.meta?.table.frameCount ?? 1) - 1);
+      const next = Math.min(Math.max(0, Math.round(frame)), max);
+      if (next !== state.currentFrame) set({ currentFrame: next });
+    },
+
     stepFrame: (delta) => {
       const state = get();
       scheduleFrame((pendingFrame ?? state.currentFrame) + delta, true);
@@ -621,6 +636,19 @@ export const useStore = create<AppState>((set, get) => {
       commit((doc) => {
         const target = doc.sequences.find((s) => s.id === seq.id)!;
         target.court.mirrored = !target.court.mirrored;
+      });
+    },
+
+    wizardMove: (point) => {
+      const state = get();
+      const wizard = state.wizard;
+      if (!wizard || wizard.index === 0) return;
+      const id = wizard.ids[wizard.index - 1]!;
+      set({
+        wizard: {
+          ...wizard,
+          taken: { ...wizard.taken, [id]: { x: point.x, y: point.y } },
+        },
       });
     },
 

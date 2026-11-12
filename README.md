@@ -87,9 +87,10 @@ une séquence, place le court, annote un trajet, recharge la page et vérifie la
 1. **Charger la vidéo** depuis la bibliothèque.
 2. **Créer une séquence** : boutons **IN** / **OUT** sous la vidéo, puis **Créer la séquence**.
    (raccourcis : `I`, `O`, `Ctrl+Entrée`)
-3. **Poser le court** : bouton **Poser le court**, puis cliquer les 4 points dans l'ordre indiqué —
-   le panneau affiche le nom de chaque point (« Coin double gauche (proche) », …) et un schéma
-   numéroté. Si la caméra bouge, se placer ailleurs et reposer.
+3. **Poser le court** : bouton **Poser le court**, puis appuyer sur les 4 points dans l'ordre
+   indiqué — le panneau affiche le nom de chaque point (« Coin double gauche (proche) », …) et un
+   schéma numéroté. Chaque coin s'ajuste **avec le même geste que la balle** : appui → loupe en
+   place ×10 → glisser → relâcher. Si la caméra bouge, se placer ailleurs et reposer.
 4. **Créer un échange** : **+ nouvel échange** à la frame de la balle.
 5. **Annoter** : **+ ancre** puis appuyer sur la balle — une **loupe en place ×10** apparaît sous le
    curseur, glisser pour ajuster au sub-pixel, relâcher pour valider. Même geste avec **+ point de
@@ -109,10 +110,10 @@ horizontalement, boutons `−` / `+`, **tout** et **séquence** pour recadrer. L
 précédents et suivants sont atténués, le reste de l'échange (courbe **et** points) est masqué. On
 garde ainsi le contexte immédiat sans être tiré par la fin du point.
 
-**Précision** : pendant le geste, la loupe en place est ancrée sur le point et la croix suit le
-déplacement amplifié ×10 ; on peut aussi cliquer dans la loupe du panneau droit et utiliser la croix
-directionnelle (pas 0,1 / 1 / 5 px par clic). L'image est décodée en pleine résolution depuis le
-fichier original.
+**Précision** : le geste est identique pour un point de balle et pour un coin du court. Pendant le
+geste, la loupe en place est ancrée sur le point et la croix suit le déplacement amplifié ×10 ; on
+peut aussi cliquer dans la loupe du panneau droit et utiliser la croix directionnelle (pas
+0,1 / 1 / 5 px par clic). L'image est décodée en pleine résolution depuis le fichier original.
 
 ## Ligne de commande
 
