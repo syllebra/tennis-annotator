@@ -24,6 +24,7 @@ export function Annotator() {
   const busy = useStore((s) => s.busy);
   const toast = useStore((s) => s.toast);
   const verify = useStore((s) => s.verify);
+  const showCourt = useStore((s) => s.showCourt);
   const loupeFocused = useStore((s) => s.loupeFocused);
   const playing = useStore((s) => s.playing);
 
@@ -127,6 +128,7 @@ export function Annotator() {
       }
       if (key === 'Escape') {
         state.cancelWizard();
+        if (state.tool !== 'select') state.setTool('select');
         return;
       }
 
@@ -222,14 +224,57 @@ export function Annotator() {
         <span className="mono subtle">
           {sequence ? sequence.label : 'hors séquence'} · #{frame}
         </span>
+        <span className="separator" />
+        <div className="transport" role="group" aria-label="Lecture">
+          <button className="btn tiny" onClick={() => useStore.getState().stepFrame(-10)} title="Reculer de 10 frames (Maj+←)">
+            −10
+          </button>
+          <button className="btn tiny" onClick={() => useStore.getState().stepFrame(-1)} title="Frame précédente (←)">
+            −1
+          </button>
+          <button
+            className={playing ? 'btn tiny on' : 'btn tiny'}
+            onClick={() => useStore.getState().setPlaying(!playing)}
+            title="Lecture / pause (Espace)"
+          >
+            {playing ? '❚❚ pause' : '▶ lecture'}
+          </button>
+          <button className="btn tiny" onClick={() => useStore.getState().stepFrame(1)} title="Frame suivante (→)">
+            +1
+          </button>
+          <button className="btn tiny" onClick={() => useStore.getState().stepFrame(10)} title="Avancer de 10 frames (Maj+→)">
+            +10
+          </button>
+        </div>
+        <span className="separator" />
+        <button
+          className={showCourt ? 'btn tiny on' : 'btn tiny'}
+          onClick={() => useStore.getState().toggleCourt()}
+          title="Afficher / masquer les lignes du court (L)"
+        >
+          lignes
+        </button>
+        <button
+          className={verify ? 'btn tiny on' : 'btn tiny'}
+          onClick={() => useStore.getState().toggleVerify()}
+          title="Relire le trajet en boucle (V)"
+        >
+          vérif.
+        </button>
         <span className="spacer" />
         {verify && <span className="chip on">vérification</span>}
-        {playing && <span className="chip on">lecture</span>}
         <span className={`chip save-${saveState}`}>{saveLabel}</span>
         <button
           className="btn tiny ghost"
+          onClick={() => useStore.getState().saveNow()}
+          title="Enregistrer maintenant (Ctrl+S) — la sauvegarde est automatique"
+        >
+          enregistrer
+        </button>
+        <button
+          className="btn tiny ghost"
           onClick={() => useStore.getState().undoDoc()}
-          title="Annuler"
+          title="Annuler (Ctrl+Z)"
         >
           ↶
         </button>

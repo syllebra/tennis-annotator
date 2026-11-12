@@ -1,5 +1,6 @@
 /**
- * End-to-end smoke test against a running server.
+ * End-to-end smoke test, **mouse only** (no keyboard shortcut required).
+ * Expects a clean test video: delete `<video>.annotations.json` before running.
  *
  *   XDG_CONFIG_HOME=... XDG_CACHE_HOME=... uv run python -m cli.main serve --port 8011
  *   node frontend/tests/e2e.smoke.mjs http://127.0.0.1:8011
@@ -22,70 +23,100 @@ page.on('console', (message) => {
 });
 
 const step = (name) => console.log(`· ${name}`);
+const click = (selector) => page.click(selector);
+const text = async (selector) => (await page.textContent(selector)) ?? '';
 
 await page.goto(base, { waitUntil: 'networkidle' });
 step('library loaded');
 await page.waitForSelector('.video-list li', { timeout: 10000 });
 await page.click('.video-list li');
 await page.waitForSelector('.stage-canvas', { timeout: 15000 });
-await page.waitForTimeout(1200);
+await page.waitForTimeout(1000);
 step('video opened');
 
-const frameLabel = async () => page.textContent('.tl-toolbar .mono');
-console.log('   frame:', await frameLabel());
-
-// sequence from frames 0..90
-await page.keyboard.press('i');
-for (let i = 0; i < 90; i++) await page.keyboard.press('ArrowRight');
-await page.keyboard.press('o');
-await page.keyboard.press('Control+Enter');
-await page.waitForTimeout(400);
-const sequenceText = await page.textContent('.side .panel');
-if (!sequenceText?.includes('Séquence')) throw new Error('sequence not created');
-step('sequence created');
-
-// court: 4 clicks in the canvas
-await page.keyboard.press('c');
-const box = await page.locator('.stage-canvas').boundingBox();
-const corners = [
-  [0.18, 0.93],
-  [0.82, 0.93],
-  [0.63, 0.42],
-  [0.37, 0.42],
-];
-for (const [x, y] of corners) {
+const canvas = page.locator('.stage-canvas');
+const box = await canvas.boundingBox();
+const clickStage = async (x, y) => {
   await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
-  await page.waitForTimeout(120);
-}
-await page.waitForTimeout(300);
-const hasCourt = await page.locator('.side').innerText();
-if (!hasCourt.includes('statique')) throw new Error('court keyframe not created');
-step('court placed');
+  await page.waitForTimeout(160);
+};
 
-// trajectory with two anchors and one path point
-await page.keyboard.press('b');
-await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.8);
-await page.keyboard.press('a');
-for (let i = 0; i < 30; i++) await page.keyboard.press('ArrowRight');
-await page.mouse.move(box.x + box.width * 0.62, box.y + box.height * 0.5);
-await page.keyboard.press('a');
-await page.keyboard.press('3');
-for (let i = 0; i < 15; i++) await page.keyboard.press('ArrowRight');
-await page.keyboard.press('p');
+// --- sequence, mouse only --------------------------------------------------
+await click('.timeline button:has-text("IN")');
+for (let i = 0; i < 2; i++) await click('.transport button:has-text("+10")');
+await click('.timeline button:has-text("OUT")');
+await click('.timeline button:has-text("Créer la séquence")');
 await page.waitForTimeout(400);
-step('trajectory annotated');
+const sequenceLabel = await page.inputValue('.side .panel input.field');
+if (sequenceLabel !== 'Séquence 1') throw new Error(`séquence non créée (label="${sequenceLabel}")`);
+step('sequence created with buttons');
 
-// reload and verify persistence
-await page.waitForTimeout(1500);
+// --- court, labelled wizard ------------------------------------------------
+await click('.side button:has-text("Poser le court")');
+const wizardHead = await text('.wizard-head');
+if (!/Coin double|Coin simple|Centre du filet|Ligne service/.test(wizardHead)) {
+  throw new Error(`wizard label missing: ${wizardHead}`);
+}
+const corners = [
+  [0.2, 0.85],
+  [0.8, 0.85],
+  [0.62, 0.35],
+  [0.38, 0.35],
+];
+for (let i = 0; i < corners.length; i++) {
+  await clickStage(corners[i][0], corners[i][1]);
+  if (i < corners.length - 1 && !(await text('.wizard-head')).includes(String(i + 2))) {
+    throw new Error(`wizard did not advance to step ${i + 2}`);
+  }
+}
+await page.waitForTimeout(400);
+if (!(await text('.side')).includes('statique')) throw new Error('court keyframe not created');
+step('court placed with labelled wizard');
+
+// --- échange with two segments --------------------------------------------
+await click('.side button:has-text("nouvel échange")');
+await page.waitForTimeout(300);
+await click('.side button:has-text("+ ancre")');
+if (!(await text('.stage-hint')).includes('ancre')) throw new Error('armed hint missing');
+await clickStage(0.45, 0.75);
+await page.waitForTimeout(250);
+await click('.side button:has-text("Bord")');
+for (let i = 0; i < 10; i++) await click('.transport button:has-text("+1")');
+await click('.side button:has-text("+ ancre")');
+await clickStage(0.6, 0.45);
+await click('.side button:has-text("Sol")');
+for (let i = 0; i < 3; i++) await click('.transport button:has-text("−1")');
+await click('.side button:has-text("+ point de passage")');
+await clickStage(0.52, 0.6);
+await page.waitForTimeout(400);
+
+const panel = await text('.side');
+if (!panel.includes('2 impact(s)')) throw new Error('expected 2 impacts');
+if (!panel.includes('1 segment(s)')) throw new Error('expected 1 segment');
+if (!panel.includes('#10')) throw new Error('impact chip missing');
+step('échange annotated with buttons');
+
+// --- zoom controls ---------------------------------------------------------
+const zoomBefore = await text('.zoom-value');
+await page.click('.zoom-group button:has-text("+")');
+await page.waitForTimeout(200);
+const zoomAfter = await text('.zoom-value');
+if (zoomBefore === zoomAfter) throw new Error('timeline zoom button did nothing');
+await page.click('.zoom-group button:has-text("tout")');
+step('timeline zoom works');
+
+// --- persistence -----------------------------------------------------------
+await page.waitForTimeout(1200);
 await page.reload({ waitUntil: 'networkidle' });
 await page.waitForSelector('.video-list li');
-const status = await page.textContent('.video-list li .status');
-if (!status?.includes('en cours')) throw new Error(`unexpected status: ${status}`);
+const status = await text('.video-list li .status');
+if (!status.includes('en cours')) throw new Error(`unexpected status: ${status}`);
 await page.click('.video-list li');
 await page.waitForSelector('.stage-canvas');
 await page.waitForTimeout(800);
-const side = await page.locator('.side').innerText();
-if (!side.includes('Trajet 1')) throw new Error('trajectory not persisted');
+const after = await text('.side');
+if (!after.includes('Échange 1')) throw new Error('trajectory not persisted');
+if (!(await page.locator('.impact-chips .impact').count())) throw new Error('impacts not persisted');
 step('persistence verified');
 
 await page.screenshot({ path: shot });

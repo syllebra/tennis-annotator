@@ -72,22 +72,41 @@ cd frontend && node tests/e2e.smoke.mjs http://127.0.0.1:8011
 une séquence, place le court, annote un trajet, recharge la page et vérifie la persistance — et
 échoue si la moindre erreur console apparaît.
 
-## Workflow d'annotation
+## Modèle : séquence, échange, segment
+
+- Une **vidéo** contient plusieurs **séquences** (plages temporelles disjointes), par exemple une
+  séquence par set, par caméra ou par session.
+- Une **séquence** contient un **court** et plusieurs **échanges**.
+- Un **échange** = **un point joué** (service, échange de fond, jusqu'au point marqué). C'est une
+  seule spline d'un bout à l'autre, découpée en **segments** par les **impacts**
+  (Main, Raquette, Sol, Filet, Autre, ou Bord en début/fin de vidéo). Entre deux impacts, on ajoute
+  des **points de passage** pour faire épouser la courbe à la balle.
+
+## Workflow d'annotation (tout est faisable à la souris)
 
 1. **Charger la vidéo** depuis la bibliothèque.
-2. **Créer une séquence** : `I` (début), `O` (fin), `Ctrl+Entrée`.
-3. **Poser le court** : `C` puis cliquer les 4 points dans l'ordre demandé (coins du double par
-   défaut ; presets coins du simple / carrés de service dans le panneau). Si la caméra bouge,
-   se placer à une autre frame et `C` de nouveau.
-4. **Créer un trajet balle** : `B` à la frame de la balle.
-5. **Annoter** : `A` ajoute une ancre à la position du curseur, `P` ajoute un point de passage
-   entre deux ancres, `1`–`5` posent le tag d'impact, `0` un bord, `U` ouvre/ferme une occultation.
-6. **Vérifier** : `V` relit le trajet en boucle avec la courbe échantillonnée.
-7. `Ctrl+Z` annule, `Ctrl+S` force la sauvegarde (autosave ~1 s de toute façon).
+2. **Créer une séquence** : boutons **IN** / **OUT** sous la vidéo, puis **Créer la séquence**.
+   (raccourcis : `I`, `O`, `Ctrl+Entrée`)
+3. **Poser le court** : bouton **Poser le court**, puis cliquer les 4 points dans l'ordre indiqué —
+   le panneau affiche le nom de chaque point (« Coin double gauche (proche) », …) et un schéma
+   numéroté. Si la caméra bouge, se placer ailleurs et reposer.
+4. **Créer un échange** : **+ nouvel échange** à la frame de la balle.
+5. **Annoter** : **+ ancre** puis cliquer la balle ; **+ point de passage** puis cliquer la balle
+   entre deux impacts ; les tags d'impact sont des boutons (Main, Raquette, Sol, Filet, Autre, Bord) ;
+   **occultation** ouvre/ferme une plage masquée.
+6. **Vérifier** : bouton **vérif.** relit l'échange en boucle avec la courbe échantillonnée.
+7. **enregistrer** force la sauvegarde (autosave ~1 s de toute façon), `↶` / `↷` annulent.
 
-La loupe permet un placement sub-pixel : cliquer dedans pour lui donner le focus, puis les flèches
-déplacent le point sélectionné de 0,1 px (`Shift` = 1 px, `Alt` = 5 px). L'image y est décodée en
-pleine résolution depuis le fichier original.
+Les raccourcis clavier existent pour aller plus vite (`Espace`, `←/→`, `A`, `P`, `1`–`5`, `U`, `V`,
+`Ctrl+Z`…) mais ne sont jamais nécessaires : chaque action a son bouton.
+
+**Zoom** : molette directement sur la timeline (centré sur le curseur), `Maj+molette` pour défiler
+horizontalement, boutons `−` / `+`, **tout** et **séquence** pour recadrer. La loupe a ses propres
+`−` / `+` et son curseur.
+
+La loupe permet un placement sub-pixel : cliquer dedans puis utiliser la croix directionnelle du
+panneau (pas 0,1 / 1 / 5 px par clic). L'image y est décodée en pleine résolution depuis le fichier
+original.
 
 ## Ligne de commande
 

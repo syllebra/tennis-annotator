@@ -182,14 +182,19 @@ export function drawOverlay(
   }
 
   if (view.wizard) {
-    const nextId = view.wizard.ids[view.wizard.index];
     for (const [id, p] of Object.entries(view.wizard.taken)) {
+      const order = view.wizard.ids.indexOf(id);
       const [x, y] = toPx([p.x, p.y]);
       ctx.save();
-      ctx.fillStyle = id === nextId ? '#ffd166' : 'rgba(0,220,255,0.85)';
+      ctx.fillStyle = 'rgba(0,220,255,0.9)';
       ctx.beginPath();
-      ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.arc(x, y, 7, 0, Math.PI * 2);
       ctx.fill();
+      ctx.fillStyle = '#0d1117';
+      ctx.font = '600 10px system-ui';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(order + 1), x, y + 0.5);
       ctx.restore();
     }
   }

@@ -96,6 +96,8 @@ interface AppState {
   clearRange: () => void;
   createSequence: () => void;
   deleteSequence: () => void;
+  renameSequence: (label: string) => void;
+  setSequenceRange: (start: number, end: number) => void;
 
   startCourtWizard: () => void;
   cancelWizard: () => void;
@@ -106,6 +108,10 @@ interface AppState {
 
   newTrajectory: (at?: XY) => void;
   deleteTrajectory: () => void;
+  renameTrajectory: (label: string) => void;
+  placeWithTool: (point: XY) => void;
+  convertSelected: (kind: 'anchor' | 'path') => void;
+  selectRelative: (delta: number) => void;
   addAnchor: (tag: Tag | null, at?: XY) => void;
   addPathPoint: (at?: XY) => void;
   setPointTag: (tag: Tag) => void;
@@ -395,7 +401,14 @@ export const useStore = create<AppState>((set, get) => {
 
     syncFrame: (frame) => scheduleFrame(frame, false),
 
-    setTool: (tool) => set({ tool }),
+    setTool: (tool) => {
+      const state = get();
+      if (tool === 'anchor' && !state.activeTrajectoryId) {
+        set({ toast: 'Crée d’abord un échange (bouton « Nouvel échange »).' });
+        return;
+      }
+      set({ tool, wizard: tool === 'court' ? state.wizard : null });
+    },
 
     select: (selection) => {
       if (selection?.kind === 'point') {
@@ -476,6 +489,59 @@ export const useStore = create<AppState>((set, get) => {
         { select: null },
       );
       set({ pendingIn: null, pendingOut: null, currentFrame: tStart, toast: null });
+    },
+
+    renameSequence: (label) => {
+      frameNow();
+      const seq = activeSequenceOf(get());
+      if (!seq) return;
+      commit((doc) => {
+        const target = doc.sequences.find((s) => s.id === seq.id);
+        if (target) target.label = label;
+      });
+    },
+
+    setSequenceRange: (start, end) => {
+      frameNow();
+      const state = get();
+      const seq = activeSequenceOf(state);
+      if (!seq || !state.doc) return;
+      const maxFrame = Math.max(0, (state.meta?.table.frameCount ?? 1) - 1);
+      const tStart = Math.min(Math.max(0, Math.round(start)), maxFrame);
+      const tEnd = Math.min(Math.max(0, Math.round(end)), maxFrame);
+      if (tEnd <= tStart) {
+        set({ toast: 'La fin de la séquence doit être après son début.' });
+        return;
+      }
+      const overlap = state.doc.sequences.find(
+        (s) => s.id !== seq.id && tStart <= s.tEnd && tEnd >= s.tStart,
+      );
+      if (overlap) {
+        set({ toast: `Chevauchement avec « ${overlap.label} ».` });
+        return;
+      }
+      const blockers: string[] = [];
+      for (const kf of seq.court.keyframes) {
+        if (kf.t < tStart || kf.t > tEnd) blockers.push(`keyframe court #${kf.t}`);
+      }
+      for (const traj of seq.trajectories) {
+        for (const point of traj.points) {
+          if (point.t < tStart || point.t > tEnd) blockers.push(`${traj.label} #${point.t}`);
+        }
+      }
+      if (blockers.length > 0) {
+        set({
+          toast: `Réduction refusée : ${blockers.slice(0, 3).join(', ')}${
+            blockers.length > 3 ? '…' : ''
+          } déborderaient.`,
+        });
+        return;
+      }
+      commit((doc) => {
+        const target = doc.sequences.find((s) => s.id === seq.id)!;
+        target.tStart = tStart;
+        target.tEnd = tEnd;
+      });
     },
 
     deleteSequence: () => {
@@ -591,7 +657,7 @@ export const useStore = create<AppState>((set, get) => {
           const target = doc.sequences.find((s) => s.id === seq.id)!;
           target.trajectories.push({
             id,
-            label: `Trajet ${index}`,
+            label: `Échange ${index}`,
             needsReview: false,
             notes: '',
             tStart: frame,
@@ -622,6 +688,80 @@ export const useStore = create<AppState>((set, get) => {
         { select: null },
       );
       set({ activeTrajectoryId: null });
+    },
+
+    renameTrajectory: (label) => {
+      frameNow();
+      const id = get().activeTrajectoryId;
+      if (!id) return;
+      commit((doc) => {
+        const traj = findTrajectory(doc, id)?.traj;
+        if (traj) traj.label = label;
+      });
+    },
+
+    placeWithTool: (point) => {
+      const state = get();
+      if (state.tool === 'anchor') {
+        state.addAnchor(null, point);
+        set({ tool: 'select' });
+      } else if (state.tool === 'path') {
+        state.addPathPoint(point);
+        set({ tool: 'select' });
+      }
+    },
+
+    convertSelected: (kind) => {
+      frameNow();
+      const state = get();
+      const sel = state.selection;
+      if (!sel || sel.kind !== 'point') return;
+      const found = state.doc ? findTrajectory(state.doc, sel.trajectoryId) : null;
+      const point = found?.traj.points[sel.index];
+      if (!found || !point) return;
+      if (kind === 'anchor' && point.kind === 'path') {
+        commit((doc) => {
+          const target = findTrajectory(doc, sel.trajectoryId)?.traj.points[sel.index];
+          if (target) {
+            target.kind = 'anchor';
+            target.tag = 'other';
+          }
+        });
+        return;
+      }
+      if (kind === 'path' && point.kind === 'anchor') {
+        if (sel.index === 0 || sel.index === found.traj.points.length - 1) {
+          set({ toast: 'Le premier et le dernier point d’un échange restent des ancres.' });
+          return;
+        }
+        commit((doc) => {
+          const target = findTrajectory(doc, sel.trajectoryId)?.traj.points[sel.index];
+          if (target) {
+            target.kind = 'path';
+            target.tag = null;
+          }
+        });
+      }
+    },
+
+    selectRelative: (delta) => {
+      frameNow();
+      const state = get();
+      const id = state.activeTrajectoryId;
+      if (!id || !state.doc) return;
+      const points = findTrajectory(state.doc, id)?.traj.points ?? [];
+      if (points.length === 0) return;
+      const sorted = [...points].sort((a, b) => a.t - b.t);
+      let index = -1;
+      if (state.selection?.kind === 'point') {
+        const selectedT = points[state.selection.index]?.t;
+        index = sorted.findIndex((p) => p.t === selectedT);
+      }
+      const nextIndex = (index + delta + sorted.length) % sorted.length;
+      const target = sorted[nextIndex]!;
+      const rawIndex = points.indexOf(target);
+      state.syncFrame(target.t);
+      set({ selection: { kind: 'point', trajectoryId: id, index: rawIndex } });
     },
 
     addAnchor: (tag, at) => {

@@ -12,7 +12,8 @@ Vocabulaire du domaine. Aucun détail d'implémentation ici.
 | **Repère court** | repère physique en mètres : origine au centre du filet au sol, axe Y vers la ligne de fond lointaine, axe Z vertical. |
 | **Keyframe court** | un placement groupé de landmarks à une frame donnée. Une seule keyframe décrit un court statique ; plusieurs décrivent une caméra mobile. |
 | **Précision du repérage** | part du court couverte par le quadrilatère réellement annoté ; sous un seuil, les lignes déduites sont des extrapolations peu fiables. |
-| **Trajet balle** | le parcours d'une balle sur une plage de frames, décrit par une courbe et des points. |
+| **Échange** (syn. *trajet*) | **un point joué** : l'ensemble du parcours de la balle pour un point du match (service, échanges de fond, jusqu'au point marqué). Décrit par une seule courbe, découpée en **segments** par les impacts. |
+| **Segment** | la portion de courbe entre deux impacts consécutifs d'un échange. Un échange compte donc *n impacts − 1* segments. |
 | **Ancre** | un point d'un trajet qui **est** un événement : un impact (`Main`, `Raquette`, `Sol`, `Filet`, `Autre`) ou un bord de trajet (`Bord`). La courbe peut y changer brutalement de direction. |
 | **Point de passage** | un point intermédiaire posé sur la balle, entre deux ancres, pour faire épouser la courbure du trajet. La courbe y passe sans rupture. |
 | **Bord** | ancre sentinelle signifiant « le trajet commence ou se termine ici, en plein vol ». Uniquement en première ou dernière position. |
@@ -25,3 +26,5 @@ Termes à éviter :
 - « point de contrôle » : ambigu, il désigne tantôt une ancre, tantôt une poignée de courbe. Dire **ancre** ou **point de passage**.
 - « timestamp » : le temps d'annotation est un index de frame, pas une seconde.
 - « trajet du court » : le court ne se déplace pas, on décrit ses **keyframes**.
+- « trajet » employé pour un simple vol de balle : par convention, un trajet = un échange complet
+  (plusieurs segments), pas un segment.

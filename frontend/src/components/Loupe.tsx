@@ -83,6 +83,8 @@ export function Loupe() {
       <div className="panel-title">
         Loupe <span className="mono subtle">{point ? `#${pointFrame}` : '—'}</span>
       </div>
+      {!point && <p className="hint small">Sélectionne un point pour l’ajuster au sub-pixel.</p>}
+      {point && (
       <div
         className="loupe-box"
         ref={boxRef}
@@ -111,7 +113,7 @@ export function Loupe() {
         {src ? (
           <img src={src} alt="loupe" draggable={false} />
         ) : (
-          <div className="loupe-empty">Sélectionne un point</div>
+          <div className="loupe-empty">chargement…</div>
         )}
         {point && (
           <>
@@ -120,22 +122,40 @@ export function Loupe() {
           </>
         )}
       </div>
+      )}
+      {point && (
       <div className="loupe-controls">
-        <label>
-          zoom ×{zoom.toFixed(0)}
-          <input
-            type="range"
-            min={4}
-            max={24}
-            step={1}
-            value={zoom}
-            onChange={(event) => useStore.getState().setLoupeZoom(Number(event.target.value))}
-          />
-        </label>
+        <button
+          className="btn tiny"
+          onClick={() => useStore.getState().setLoupeZoom(Math.round(zoom / 1.3))}
+          title="Dézoomer la loupe"
+        >
+          −
+        </button>
+        <input
+          type="range"
+          min={4}
+          max={24}
+          step={1}
+          value={zoom}
+          onChange={(event) => useStore.getState().setLoupeZoom(Number(event.target.value))}
+          aria-label="Zoom de la loupe"
+        />
+        <button
+          className="btn tiny"
+          onClick={() => useStore.getState().setLoupeZoom(Math.round(zoom * 1.3))}
+          title="Zoomer la loupe"
+        >
+          +
+        </button>
+        <span className="mono subtle loupe-zoom">×{zoom.toFixed(0)}</span>
       </div>
-      <div className="loupe-readout mono subtle">
-        {point ? `x ${point.x.toFixed(6)}  y ${point.y.toFixed(6)}` : '—'}
-      </div>
+      )}
+      {point && (
+        <div className="loupe-readout mono subtle">
+          x {point.x.toFixed(6)} y {point.y.toFixed(6)}
+        </div>
+      )}
       <div className="loupe-help subtle">
         Flèches = 0,1 px · Shift = 1 px · Alt = 5 px (loupe focus)
       </div>

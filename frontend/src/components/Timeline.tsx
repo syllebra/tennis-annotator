@@ -3,6 +3,8 @@ import { activeSequenceOf, useStore } from '../store';
 import { TAG_COLORS } from '../render';
 
 const TICK_STEPS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
+const MIN_SCALE = 0.002;
+const MAX_SCALE = 24;
 
 export function Timeline() {
   const doc = useStore((s) => s.doc);
@@ -31,7 +33,6 @@ export function Timeline() {
     return () => observer.disconnect();
   }, []);
 
-  // keep the playhead in view
   useEffect(() => {
     const body = bodyRef.current;
     if (!body) return;
@@ -42,37 +43,59 @@ export function Timeline() {
     else if (x > right - 80) body.scrollLeft = x - body.clientWidth + 80;
   }, [frame, pxPerFrame]);
 
+  const zoomAt = (nextScale: number, clientX?: number) => {
+    const body = bodyRef.current;
+    if (!body) return;
+    const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, nextScale));
+    const rect = body.getBoundingClientRect();
+    const pointer = clientX === undefined ? body.clientWidth / 2 : clientX - rect.left;
+    const anchorFrame = (pointer + body.scrollLeft) / pxPerFrame;
+    setPxPerFrame(scale);
+    requestAnimationFrame(() => {
+      body.scrollLeft = Math.max(0, anchorFrame * scale - pointer);
+    });
+  };
+
+  const fit = (mode: 'all' | 'sequence') => {
+    const body = bodyRef.current;
+    if (!body || total === 0) return;
+    const span =
+      mode === 'sequence' && sequence ? sequence.tEnd - sequence.tStart + 1 : total;
+    const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, (body.clientWidth - 8) / span));
+    setPxPerFrame(scale);
+    requestAnimationFrame(() => {
+      body.scrollLeft = mode === 'sequence' && sequence ? sequence.tStart * scale : 0;
+    });
+  };
+
+  // molette = zoom autour du curseur, maj+molette = défilement horizontal
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+    const onWheel = (event: WheelEvent) => {
+      if (event.shiftKey) {
+        body.scrollLeft += event.deltaY;
+        event.preventDefault();
+        return;
+      }
+      event.preventDefault();
+      zoomAt(pxPerFrame * (event.deltaY < 0 ? 1.18 : 1 / 1.18), event.clientX);
+    };
+    body.addEventListener('wheel', onWheel, { passive: false });
+    return () => body.removeEventListener('wheel', onWheel);
+  }, [pxPerFrame]);
+
   const frameAt = (clientX: number): number => {
     const body = bodyRef.current;
     if (!body) return 0;
     const rect = body.getBoundingClientRect();
-    const x = clientX - rect.left + body.scrollLeft;
-    return Math.round(x / pxPerFrame);
+    return Math.round((clientX - rect.left + body.scrollLeft) / pxPerFrame);
   };
 
   const scrub = (event: React.PointerEvent) => {
     if (event.buttons !== 1 && event.type === 'pointermove') return;
     useStore.getState().setFrame(frameAt(event.clientX));
   };
-
-  useEffect(() => {
-    const onWheel = (event: WheelEvent) => {
-      if (!event.ctrlKey) return;
-      event.preventDefault();
-      const body = bodyRef.current;
-      if (!body) return;
-      const rect = body.getBoundingClientRect();
-      const anchorFrame = (event.clientX - rect.left + body.scrollLeft) / pxPerFrame;
-      const next = Math.min(24, Math.max(0.02, pxPerFrame * (event.deltaY < 0 ? 1.15 : 0.87)));
-      setPxPerFrame(next);
-      requestAnimationFrame(() => {
-        body.scrollLeft = anchorFrame * next - (event.clientX - rect.left);
-      });
-    };
-    const body = bodyRef.current;
-    body?.addEventListener('wheel', onWheel, { passive: false });
-    return () => body?.removeEventListener('wheel', onWheel);
-  }, [pxPerFrame]);
 
   const step = TICK_STEPS.find((s) => s * pxPerFrame >= 56) ?? 10000;
   const visibleStart = Math.max(0, Math.floor(scrollLeft / pxPerFrame) - step);
@@ -81,43 +104,81 @@ export function Timeline() {
   for (let f = Math.ceil(visibleStart / step) * step; f <= visibleEnd; f += step) ticks.push(f);
 
   if (!doc || !meta) return null;
+  const store = useStore.getState();
 
   return (
     <div className="timeline">
       <div className="tl-toolbar">
-        <span className="mono">
-          #{frame} / {total - 1}
-        </span>
+        <label className="tl-frame">
+          frame
+          <input
+            type="number"
+            min={0}
+            max={total - 1}
+            value={frame}
+            onChange={(event) => store.setFrame(Number(event.target.value))}
+          />
+          <span className="subtle mono">/ {total - 1}</span>
+        </label>
         <span className="tl-time mono">{formatTime(meta.table.pts[frame] ?? 0)}</span>
         <span className="separator" />
-        <label className="tl-zoom">
-          zoom
-          <input
-            type="range"
-            min={-3}
-            max={3}
-            step={0.05}
-            value={Math.log10(pxPerFrame)}
-            onChange={(event) => setPxPerFrame(10 ** Number(event.target.value))}
-          />
-        </label>
-        <span className="separator" />
-        <span className={pendingIn !== null ? 'mono chip on' : 'mono chip'}>
+        <button
+          className={pendingIn !== null ? 'btn small on' : 'btn small'}
+          onClick={() => store.setIn()}
+          title="Poser le début de la sélection à la frame courante (I)"
+        >
           IN {pendingIn ?? '—'}
-        </span>
-        <span className={pendingOut !== null ? 'mono chip on' : 'mono chip'}>
+        </button>
+        <button
+          className={pendingOut !== null ? 'btn small on' : 'btn small'}
+          onClick={() => store.setOut()}
+          title="Poser la fin de la sélection à la frame courante (O)"
+        >
           OUT {pendingOut ?? '—'}
-        </span>
-        <button className="btn small" onClick={() => useStore.getState().createSequence()}>
+        </button>
+        <button className="btn small" onClick={() => store.createSequence()}>
           Créer la séquence
         </button>
-        <button className="btn small ghost" onClick={() => useStore.getState().clearRange()}>
+        <button
+          className="btn small ghost"
+          onClick={() => store.clearRange()}
+          disabled={pendingIn === null && pendingOut === null}
+        >
           effacer
         </button>
         <span className="spacer" />
         {occlusionStart !== null && (
           <span className="chip warn mono">occultation ouverte @ {occlusionStart}</span>
         )}
+        <span className="separator" />
+        <div className="zoom-group">
+          <button
+            className="btn tiny"
+            onClick={() => zoomAt(pxPerFrame / 1.35)}
+            title="Dézoomer la timeline"
+          >
+            −
+          </button>
+          <span className="mono subtle zoom-value">{pxPerFrame.toFixed(2)} px/f</span>
+          <button
+            className="btn tiny"
+            onClick={() => zoomAt(pxPerFrame * 1.35)}
+            title="Zoomer la timeline (molette sur la timeline)"
+          >
+            +
+          </button>
+          <button className="btn tiny ghost" onClick={() => fit('all')} title="Voir toute la vidéo">
+            tout
+          </button>
+          <button
+            className="btn tiny ghost"
+            onClick={() => fit('sequence')}
+            disabled={!sequence}
+            title="Cadrer la séquence courante"
+          >
+            séquence
+          </button>
+        </div>
       </div>
 
       <div
@@ -146,7 +207,10 @@ export function Timeline() {
               <div
                 key={seq.id}
                 className={seq.id === sequence?.id ? 'tl-band active' : 'tl-band'}
-                style={{ left: seq.tStart * pxPerFrame, width: (seq.tEnd - seq.tStart + 1) * pxPerFrame }}
+                style={{
+                  left: seq.tStart * pxPerFrame,
+                  width: (seq.tEnd - seq.tStart + 1) * pxPerFrame,
+                }}
                 onPointerDown={(event) => {
                   event.stopPropagation();
                   useStore.getState().setFrame(seq.tStart);
@@ -162,13 +226,16 @@ export function Timeline() {
               <div
                 key={traj.id}
                 className={traj.id === activeTrajectoryId ? 'tl-row active' : 'tl-row'}
-                style={{ left: traj.tStart * pxPerFrame, width: (traj.tEnd - traj.tStart + 1) * pxPerFrame }}
+                title={`${traj.label} — ${traj.points.filter((p) => p.kind === 'anchor').length} impact(s)`}
+                style={{
+                  left: traj.tStart * pxPerFrame,
+                  width: (traj.tEnd - traj.tStart + 1) * pxPerFrame,
+                }}
                 onPointerDown={(event) => {
                   event.stopPropagation();
                   useStore.getState().setActiveTrajectory(traj.id);
                 }}
               >
-                <span className="tl-row-label">{traj.label}</span>
                 {traj.occlusions.map((occ, i) => (
                   <div
                     key={i}

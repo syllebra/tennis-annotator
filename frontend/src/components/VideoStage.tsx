@@ -3,6 +3,7 @@ import { api } from '../api';
 import { courtLandmarksOf, drawOverlay, hitTest, type StageView } from '../render';
 import { hoverState, useStore } from '../store';
 import type { Point } from '../math';
+import { LANDMARK_LABELS } from '../math';
 
 const imageCache = new Map<string, { img: HTMLImageElement; ready: boolean }>();
 
@@ -38,6 +39,7 @@ export function VideoStage() {
   const wizard = useStore((s) => s.wizard);
   const activeTrajectoryId = useStore((s) => s.activeTrajectoryId);
   const occlusionStart = useStore((s) => s.occlusionStart);
+  const tool = useStore((s) => s.tool);
 
   const view: StageView | null = (() => {
     if (!doc) return null;
@@ -193,6 +195,10 @@ export function VideoStage() {
       state.wizardClick({ x: ratio[0], y: ratio[1] });
       return;
     }
+    if (state.tool === 'anchor' || state.tool === 'path') {
+      state.placeWithTool({ x: ratio[0], y: ratio[1] });
+      return;
+    }
     const rect = canvasRef.current.getBoundingClientRect();
     const hit = hitTest(
       viewRef.current,
@@ -259,9 +265,34 @@ export function VideoStage() {
           onPointerCancel={onPointerUp}
         />
         {wizard && (
-          <div className="stage-hint">
-            Clique {wizard.index + 1}/{wizard.ids.length} : {wizard.ids[wizard.index]}
+          <div className="stage-hint wizard">
+            <span className="step">
+              {wizard.index + 1}/{wizard.ids.length}
+            </span>
+            <span className="grow">
+              {LANDMARK_LABELS[wizard.ids[wizard.index]!] ?? wizard.ids[wizard.index]}
+            </span>
+            <span className="dots">
+              {wizard.ids.map((id, index) => (
+                <span
+                  key={id}
+                  className={
+                    index < wizard.index ? 'dot done' : index === wizard.index ? 'dot current' : 'dot'
+                  }
+                >
+                  {index + 1}
+                </span>
+              ))}
+            </span>
             <button className="link" onClick={() => useStore.getState().cancelWizard()}>
+              annuler
+            </button>
+          </div>
+        )}
+        {(tool === 'anchor' || tool === 'path') && (
+          <div className="stage-hint armed">
+            Clique la balle pour poser {tool === 'anchor' ? 'une ancre' : 'un point de passage'}
+            <button className="link" onClick={() => useStore.getState().setTool('select')}>
               annuler
             </button>
           </div>
