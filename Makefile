@@ -1,7 +1,7 @@
 PY := uv run
 FRONT := frontend
 
-.PHONY: help sync build serve dev test test-py test-js fixtures e2e check schema clean
+.PHONY: help sync build serve dev test test-py test-js fixtures e2e check schema launcher clean
 
 help:
 	@grep -E '^[a-z-]+:.*?##' Makefile | sed 's/:.*##/\t: /'
@@ -30,6 +30,9 @@ test-js:
 
 fixtures:  ## régénère les fixtures de conformité Python <-> TypeScript
 	$(PY) python scripts/gen_fixtures.py
+
+launcher:  ## installe la commande globale `tennis-annotator` + entrée de menu
+	./scripts/install-launcher.sh
 
 e2e:  ## smoke test navigateur (serveur requis sur :8011, Chromium installé)
 	cd $(FRONT) && node tests/e2e.smoke.mjs http://127.0.0.1:8011

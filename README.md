@@ -21,6 +21,29 @@ uv run python -m cli.main serve
 Au premier lancement : « Parcourir… » pour choisir le dossier racine des vidéos, puis cliquer une
 vidéo. Les annotations sont lues/écrites dans `<video>.annotations.json` (à côté de la vidéo).
 
+### Lanceur global
+
+```bash
+./scripts/install-launcher.sh      # ou : make launcher
+```
+
+Installe `~/.local/bin/tennis-annotator` (lien vers ce dépôt) et une entrée **Tennis Annotator**
+dans le menu d'applications.
+
+```bash
+tennis-annotator                     # dernier dossier utilisé
+tennis-annotator ~/Videos/tennis     # définit la racine des vidéos
+tennis-annotator ~/Videos/a.mp4      # ouvre directement cette vidéo
+tennis-annotator --no-browser --port 9000
+tennis-annotator --rebuild           # reconstruit le frontend avant de lancer
+```
+
+Au premier lancement, les dépendances Python sont installées (`uv sync`) et le frontend est
+construit si `frontend/dist` manque. Une seule instance serveur à la fois : un second appel se
+contente d'ouvrir l'interface existante, quel que soit le port demandé. Journaux :
+`~/.local/state/tennis-annotator/server.log`. Désinstallation :
+`./scripts/install-launcher.sh --uninstall`.
+
 ### Développement
 
 ```bash

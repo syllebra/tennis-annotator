@@ -1,0 +1,248 @@
+#!/usr/bin/env bash
+# Tennis Annotator — lanceur global.
+#
+#   tennis-annotator                 # ouvre l'interface sur le dernier dossier utilisé
+#   tennis-annotator ~/Videos        # définit le dossier racine des vidéos
+#   tennis-annotator ~/Videos/a.mp4  # ouvre directement une vidéo
+#   tennis-annotator --no-browser    # démarre seulement le serveur
+#   tennis-annotator --rebuild       # reconstruit le frontend avant de lancer
+#   tennis-annotator --port 9000     # change le port
+#
+# Le serveur tourne au premier plan : Ctrl+C l'arrête. Lancé depuis le menu
+# d'applications, il continue tant que le serveur vit.
+set -euo pipefail
+
+APP_DIR="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/.." && pwd)"
+PORT="${TENNIS_ANNOTATOR_PORT:-8001}"
+OPEN_BROWSER=1
+REBUILD=0
+TARGET=""
+
+usage() {
+  cat <<'TXT'
+Usage : tennis-annotator [OPTIONS] [DOSSIER|VIDÉO]
+
+Sans argument, ouvre l'interface sur le dernier dossier utilisé.
+Un dossier devient la racine des vidéos ; un fichier ouvre sa vidéo.
+
+Options :
+  --port N        port d'écoute (défaut 8001, ou $TENNIS_ANNOTATOR_PORT)
+  --no-browser    ne pas ouvrir le navigateur
+  --rebuild       reconstruire le frontend avant de lancer
+  -h, --help      cette aide
+TXT
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --no-browser) OPEN_BROWSER=0 ;;
+    --rebuild) REBUILD=1 ;;
+    --port) shift; PORT="${1:?--port attend une valeur}" ;;
+    -*) printf 'tennis-annotator: option inconnue %s\n' "$1" >&2; exit 2 ;;
+    *) TARGET="$1" ;;
+  esac
+  shift
+done
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/tennis-annotator"
+LOG="$STATE_DIR/server.log"
+mkdir -p "$STATE_DIR"
+
+fail() {
+  printf 'tennis-annotator: %s\n' "$*" >&2
+  if command -v notify-send >/dev/null 2>&1; then
+    notify-send -u critical -a "Tennis Annotator" "Lancement impossible" "$*" || true
+  fi
+  exit 1
+}
+
+# Un lancement depuis le menu d'applications n'hérite pas du PATH du shell :
+# on cherche explicitement les binaires de mise.
+find_tool() {
+  local name="$1"
+  shift
+  local candidate
+  candidate="$(command -v "$name" 2>/dev/null || true)"
+  if [ -n "$candidate" ]; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+  for candidate in "$@"; do
+    if [ -x "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+health_ok() {
+  curl -fsS --max-time 1 "http://127.0.0.1:$1/api/health" 2>/dev/null |
+    grep -q 'tennis-annotator'
+}
+
+port_free() {
+  "$PY" - "$1" <<'PY'
+import socket, sys
+sock = socket.socket()
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+try:
+    sock.bind(("127.0.0.1", int(sys.argv[1])))
+except OSError:
+    sys.exit(1)
+finally:
+    sock.close()
+PY
+}
+
+instance_port() {
+  local file="$STATE_DIR/instance.port"
+  local candidate
+  if [ -f "$file" ]; then
+    candidate="$(cat "$file" 2>/dev/null || true)"
+    if [ -n "$candidate" ] && health_ok "$candidate"; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+    rm -f "$file"
+  fi
+  for candidate in $(seq "$PORT" $((PORT + 30))); do
+    if health_ok "$candidate"; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+attach() {
+  local port="$1"
+  local url
+  url="$(url_for "$port")"
+  printf 'Tennis Annotator tourne déjà sur %s\n' "$url"
+  if [ "$OPEN_BROWSER" = 1 ]; then
+    xdg-open "$url" >/dev/null 2>&1 || true
+  fi
+  exit 0
+}
+
+url_for() {
+  local port="$1"
+  if [ -n "$URL_PATH" ]; then
+    printf 'http://127.0.0.1:%s/?video=%s' "$port" \
+      "$("$PY" -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1]))' "$URL_PATH")"
+  else
+    printf 'http://127.0.0.1:%s/' "$port"
+  fi
+}
+
+# --- dépendances -----------------------------------------------------------
+
+PY="$APP_DIR/.venv/bin/python"
+if [ ! -x "$PY" ]; then
+  UV="$(find_tool uv \
+    "$HOME/.local/share/mise/installs/uv/latest/.mise-bins/uv" \
+    "$HOME/.local/share/mise/shims/uv" \
+    "$HOME/.local/bin/uv" \
+    /usr/bin/uv)" || fail "uv est introuvable. Installe uv, puis relance ce script."
+  printf 'Installation des dépendances Python (première fois)…\n'
+  ( cd "$APP_DIR" && "$UV" sync ) || fail "uv sync a échoué."
+fi
+[ -x "$PY" ] || fail "Environnement Python absent : $PY"
+
+if [ "$REBUILD" = 1 ] || [ ! -f "$APP_DIR/frontend/dist/index.html" ]; then
+  NPM="$(find_tool npm \
+    "$HOME/.local/share/mise/installs/node/latest/bin/npm" \
+    "$HOME/.local/share/mise/shims/npm" \
+    /usr/bin/npm)" || fail "npm est introuvable (nécessaire pour construire l'interface)."
+  if [ ! -d "$APP_DIR/frontend/node_modules" ]; then
+    printf 'Installation des dépendances JavaScript (première fois)…\n'
+    ( cd "$APP_DIR/frontend" && "$NPM" install --no-fund --no-audit ) || fail "npm install a échoué."
+  fi
+  printf 'Construction de l’interface…\n'
+  ( cd "$APP_DIR/frontend" && "$NPM" run build ) || fail "La construction du frontend a échoué."
+fi
+
+# --- dossier racine et vidéo éventuelle ------------------------------------
+
+URL_PATH=""
+
+if [ -n "$TARGET" ]; then
+  [ -e "$TARGET" ] || fail "Chemin introuvable : $TARGET"
+  if [ -d "$TARGET" ]; then
+    ROOT_DIR="$TARGET"
+  else
+    ROOT_DIR="$(dirname -- "$TARGET")"
+    URL_PATH="$(basename -- "$TARGET")"
+  fi
+  "$PY" - "$ROOT_DIR" <<'PY' || fail "Impossible d'enregistrer le dossier racine."
+import json, os, pathlib, sys
+
+root = pathlib.Path(sys.argv[1]).expanduser().resolve()
+config_dir = pathlib.Path(os.environ.get("XDG_CONFIG_HOME", pathlib.Path.home() / ".config")) / "tennis-annotator"
+config_dir.mkdir(parents=True, exist_ok=True)
+path = config_dir / "config.json"
+config = {}
+if path.exists():
+    try:
+        config = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        config = {}
+config["videoRoot"] = str(root)
+path.write_text(json.dumps(config, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+fi
+
+# --- instance déjà lancée ? ------------------------------------------------
+
+if running="$(instance_port)"; then
+  attach "$running"
+fi
+
+# --- port et lancement -----------------------------------------------------
+
+LOCK_FILE="$STATE_DIR/launcher.lock"
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+  # course entre deux lancements simultanés : le premier a la main
+  if running="$(instance_port)"; then
+    attach "$running"
+  fi
+  fail "Un autre lancement est en cours (verrou $LOCK_FILE)."
+fi
+
+for candidate in $(seq "$PORT" $((PORT + 30))); do
+  if port_free "$candidate"; then
+    PORT="$candidate"
+    break
+  fi
+done
+port_free "$PORT" || fail "Aucun port libre entre $PORT et $((PORT + 30))."
+
+URL="$(url_for "$PORT")"
+printf '%s\n' "$PORT" > "$STATE_DIR/instance.port"
+printf 'Tennis Annotator → %s\n' "$URL"
+printf 'Journaux : %s\n' "$LOG"
+
+if [ "$OPEN_BROWSER" = 1 ]; then
+  (
+    for _ in $(seq 1 150); do
+      if health_ok "$PORT"; then
+        xdg-open "$URL" >/dev/null 2>&1 || true
+        exit 0
+      fi
+      sleep 0.2
+    done
+  ) &
+fi
+
+cd "$APP_DIR"
+if [ -t 1 ]; then
+  "$PY" -m uvicorn app.main:app --app-dir "$APP_DIR/backend" \
+    --host 127.0.0.1 --port "$PORT" 2>&1 | tee -a "$LOG"
+  exit "${PIPESTATUS[0]}"
+else
+  exec "$PY" -m uvicorn app.main:app --app-dir "$APP_DIR/backend" \
+    --host 127.0.0.1 --port "$PORT" >>"$LOG" 2>&1
+fi

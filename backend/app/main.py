@@ -235,7 +235,7 @@ def schema() -> dict:
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True, "cache": str(CACHE_DIR)}
+    return {"ok": True, "app": "tennis-annotator", "cache": str(CACHE_DIR)}
 
 
 if _DIST.is_dir():

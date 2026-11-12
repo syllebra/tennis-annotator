@@ -282,6 +282,15 @@ export const useStore = create<AppState>((set, get) => {
           libraryExists: list.exists,
           videos: list.videos,
         });
+        // Deep link used by the global launcher: /?video=<relative path>
+        const requested = new URLSearchParams(window.location.search).get('video');
+        if (requested) {
+          const match =
+            list.videos.find((video) => video.relPath === requested) ??
+            list.videos.find((video) => video.name === requested);
+          if (match) void get().openVideo(match.id);
+          else set({ toast: `Vidéo introuvable dans ce dossier : ${requested}` });
+        }
       } catch (error) {
         set({ ready: true, toast: (error as Error).message });
       }
