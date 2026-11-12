@@ -33,10 +33,21 @@ cd frontend && npm run dev
 ## Tests
 
 ```bash
-uv run pytest                 # géométrie, frame server, schéma, persistance, API
+uv run pytest                           # géométrie, frame server, schéma, persistance, API
 uv run python scripts/gen_fixtures.py   # fixtures de conformité cross-langage
-cd frontend && npm test       # parité Python/TS + helpers de dérivation
+cd frontend && npm test                 # parité Python/TS + helpers de dérivation
 ```
+
+Test de bout en bout (optionnel, utilise le Chromium du système) :
+
+```bash
+uv run python -m cli.main serve --port 8011     # dans un terminal
+cd frontend && node tests/e2e.smoke.mjs http://127.0.0.1:8011
+```
+
+`CHROMIUM_PATH=/usr/bin/brave node tests/e2e.smoke.mjs …` pour un autre navigateur. Le test crée
+une séquence, place le court, annote un trajet, recharge la page et vérifie la persistance — et
+échoue si la moindre erreur console apparaît.
 
 ## Workflow d'annotation
 

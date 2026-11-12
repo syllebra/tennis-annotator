@@ -181,12 +181,19 @@ export function Annotator() {
   }, []);
 
   useEffect(() => {
-    const onUnload = () => {
+    const flush = () => {
       const state = useStore.getState();
       if (state.activeId && state.doc) void state.saveNow();
     };
-    window.addEventListener('beforeunload', onUnload);
-    return () => window.removeEventListener('beforeunload', onUnload);
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    window.addEventListener('beforeunload', flush);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('beforeunload', flush);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, []);
 
   if (!meta || !doc) return <div className="boot">Chargement…</div>;
