@@ -22,6 +22,7 @@ export function Annotator() {
   const saveState = useStore((s) => s.saveState);
   const mismatch = useStore((s) => s.mismatch);
   const busy = useStore((s) => s.busy);
+  const detectorBusy = useStore((s) => s.detectorBusy);
   const toast = useStore((s) => s.toast);
   const verify = useStore((s) => s.verify);
   const showCourt = useStore((s) => s.showCourt);
@@ -323,6 +324,7 @@ export function Annotator() {
         </div>
       )}
       {busy && <div className="banner">{busy}</div>}
+      {detectorBusy && <div className="banner info">{detectorBusy}</div>}
 
       <div className="workspace">
         <div className="stage-column">

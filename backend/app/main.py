@@ -2,18 +2,28 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
+import shutil
+import tempfile
 import threading
 from pathlib import Path
 
+import numpy as np
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from . import annotations, library, probe
 from .config import CACHE_DIR, load_config, save_config
-from .frames import FrameDecoder, FrameError
+from .detectors import court as court_detector
+from .detectors import detector_discovery
+from .detectors import fit as detector_fit
+from .detectors.client import DetectorError
+from .detectors.client import client as detector_client
+from .detectors.fit import Detection
+from .frames import FrameDecoder, FrameError, extract_range
 from .proxy import proxy_manager
 from .schema import Document
 
@@ -65,9 +75,17 @@ def _open(vid: str) -> _Cached:
 # --- config ---------------------------------------------------------------
 
 
+class DetectorSettings(BaseModel):
+    analyzerPath: str | None = None
+    ballThreshold: float | None = None
+    tolerancePx: float | None = None
+    maxPoints: int | None = None
+
+
 class ConfigPayload(BaseModel):
     videoRoot: str | None = None
     proxy: bool | None = None
+    detectors: DetectorSettings | None = None
 
 
 @app.get("/api/config")
@@ -85,7 +103,14 @@ def put_config(payload: ConfigPayload) -> dict:
         cfg["videoRoot"] = str(root)
     if payload.proxy is not None:
         cfg["proxy"] = payload.proxy
+    if payload.detectors is not None:
+        detectors = dict(cfg.get("detectors") or {})
+        for key, value in payload.detectors.model_dump(exclude_none=True).items():
+            detectors[key] = value
+        cfg["detectors"] = detectors
     save_config(cfg)
+    detector_client.stop()
+    detector_discovery.status(cfg, refresh=True)
     return cfg
 
 
@@ -226,6 +251,249 @@ async def adopt_video(vid: str, request: Request) -> dict:
         return annotations.adopt(vid, cached.path, cached.table, payload)
     except annotations.AnnotationError as exc:
         raise HTTPException(409 if exc.conflict else 422, str(exc)) from exc
+
+
+# --- optional ML detectors ------------------------------------------------
+
+
+class AutoCourtPayload(BaseModel):
+    frame: int
+
+
+class TrajectoryAnchor(BaseModel):
+    t: int
+    x: float
+    y: float
+
+
+class FrameRange(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    start: int = Field(alias="from")
+    end: int = Field(alias="to")
+
+
+class AutoBallPayload(BaseModel):
+    trajectoryId: str
+    anchorA: TrajectoryAnchor
+    anchorB: TrajectoryAnchor
+    tolerancePx: float | None = None
+    maxPoints: int | None = None
+    threshold: float | None = None
+    occlusions: list[FrameRange] = Field(default_factory=list)
+
+
+_BALL_CACHE: dict[tuple, list[dict]] = {}
+_BALL_CACHE_LIMIT = 24
+
+
+def _detector_status(refresh: bool = False) -> dict:
+    config = load_config()
+    status = detector_discovery.status(config, refresh=refresh)
+    status["worker"] = detector_client.status()
+    status["settings"] = config.get("detectors") or {}
+    return status
+
+
+def _configure_detectors(refresh: bool = False) -> dict:
+    config = load_config()
+    status = detector_discovery.status(config, refresh=refresh)
+    if not status["available"]:
+        raise HTTPException(409, f"détecteurs indisponibles : {status['message']}")
+    root = Path(status["path"])
+    models = status["models"]
+    resolved = detector_discovery.interpreter(root)
+    if resolved is None:
+        raise HTTPException(409, "aucun interpréteur Python 3.11 avec torch/TensorRT")
+    command, env, _note = resolved
+    detector_client.configure(root, Path(models["court"]), Path(models["ball"]), command, env)
+    return status
+
+
+@app.get("/api/detectors")
+def detectors(refresh: bool = False) -> dict:
+    return _detector_status(refresh=refresh)
+
+
+@app.post("/api/detectors/warmup")
+def detectors_warmup() -> dict:
+    _configure_detectors()
+
+    def start() -> None:
+        try:
+            detector_client.ensure_started()
+        except DetectorError:
+            pass
+
+    threading.Thread(target=start, daemon=True, name="detectors-warmup").start()
+    return _detector_status()
+
+
+@app.post("/api/videos/{vid}/auto/court")
+def auto_court(vid: str, payload: AutoCourtPayload) -> dict:
+    cached = _open(vid)
+    _configure_detectors()
+    frame = payload.frame
+    if not (0 <= frame < cached.table.frameCount):
+        raise HTTPException(400, "frame hors de la vidéo")
+    try:
+        image = cached.decoder.frame(frame)
+    except FrameError as exc:
+        raise HTTPException(500, str(exc)) from exc
+    try:
+        reply = detector_client.request(
+            {"command": "court", "image": base64.b64encode(image).decode("ascii")}, timeout=180
+        )
+    except DetectorError as exc:
+        raise HTTPException(502, f"détecteur de court : {exc}") from exc
+    width = int(reply.get("width") or cached.table.width)
+    height = int(reply.get("height") or cached.table.height)
+    keypoints = reply.get("keypoints") or []
+    try:
+        corners = court_detector.landmarks_from_keypoints(keypoints, width, height)
+        landmarks = court_detector.all_landmarks(keypoints, width, height) or corners
+        quality = court_detector.quality(corners, keypoints, width, height)
+    except (ValueError, np.linalg.LinAlgError) as exc:
+        raise HTTPException(422, f"court inutilisable : {exc}") from exc
+    return {
+        "frame": frame,
+        "width": width,
+        "height": height,
+        "landmarks": {
+            key: {"x": round(value[0], 6), "y": round(value[1], 6)}
+            for key, value in landmarks.items()
+        },
+        "quality": quality,
+        "keypoints": keypoints,
+    }
+
+
+def _detect_segment(
+    cached: _Cached, payload: AutoBallPayload, threshold: float
+) -> list[dict]:
+    table = cached.table
+    start = payload.anchorA.t + 1
+    end = payload.anchorB.t - 1
+    count = end - start + 1
+    if count <= 0:
+        raise HTTPException(400, "aucune frame entre les deux ancres")
+    if count > 900:
+        raise HTTPException(400, "segment trop long : 900 frames maximum")
+    skipped: set[int] = set()
+    for occlusion in payload.occlusions:
+        skipped.update(range(occlusion.start, occlusion.end + 1))
+
+    tmp = Path(tempfile.mkdtemp(prefix="auto-ball-", dir=CACHE_DIR))
+    try:
+        try:
+            files, det_width, det_height = extract_range(
+                cached.path, table, start, count, tmp, width=min(960, table.width)
+            )
+        except FrameError as exc:
+            raise HTTPException(500, f"extraction des frames impossible : {exc}") from exc
+
+        frames = []
+        for offset, file in enumerate(files):
+            frame = start + offset
+            if frame in skipped:
+                continue
+            frames.append(
+                {
+                    "frame": frame,
+                    "image": base64.b64encode(file.read_bytes()).decode("ascii"),
+                }
+            )
+        detections: list[dict] = []
+        chunk = 48
+        for index in range(0, len(frames), chunk):
+            try:
+                reply = detector_client.request(
+                    {
+                        "command": "ball",
+                        "threshold": threshold,
+                        "frames": frames[index : index + chunk],
+                    },
+                    timeout=240,
+                )
+            except DetectorError as exc:
+                raise HTTPException(502, f"détecteur de balle : {exc}") from exc
+            for item in reply.get("detections") or []:
+                if not item.get("found"):
+                    continue
+                detections.append(
+                    {
+                        "frame": int(item["frame"]),
+                        "x": float(item["x"]) / det_width,
+                        "y": float(item["y"]) / det_height,
+                        "score": float(item.get("score") or 0.0),
+                    }
+                )
+        detections.sort(key=lambda item: item["frame"])
+        return detections
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+@app.post("/api/videos/{vid}/auto/ball")
+def auto_ball(vid: str, payload: AutoBallPayload) -> dict:
+    cached = _open(vid)
+    config = load_config()
+    settings = config.get("detectors") or {}
+    _configure_detectors()
+
+    threshold = float(
+        payload.threshold if payload.threshold is not None else settings.get("ballThreshold", 0.35)
+    )
+    tolerance = float(
+        payload.tolerancePx if payload.tolerancePx is not None else settings.get("tolerancePx", 2.0)
+    )
+    max_points = int(
+        payload.maxPoints if payload.maxPoints is not None else settings.get("maxPoints", 8)
+    )
+
+    first, last = payload.anchorA, payload.anchorB
+    if not (0 <= first.t < last.t < cached.table.frameCount):
+        raise HTTPException(400, "les ancres doivent être ordonnées et dans la vidéo")
+
+    key = (
+        vid,
+        payload.trajectoryId,
+        first.t,
+        round(first.x, 6),
+        round(first.y, 6),
+        last.t,
+        round(last.x, 6),
+        round(last.y, 6),
+        round(threshold, 3),
+    )
+    stored = _BALL_CACHE.get(key)
+    if stored is None:
+        stored = _detect_segment(cached, payload, threshold)
+        _BALL_CACHE[key] = stored
+        while len(_BALL_CACHE) > _BALL_CACHE_LIMIT:
+            _BALL_CACHE.pop(next(iter(_BALL_CACHE)))
+    if not stored:
+        raise HTTPException(422, "aucune détection de balle sur ce segment")
+
+    detections = [
+        Detection(item["frame"], item["x"], item["y"], item["score"]) for item in stored
+    ]
+    try:
+        result = detector_fit.fit_segment(
+            (first.t, first.x, first.y, "anchor"),
+            (last.t, last.x, last.y, "anchor"),
+            detections,
+            width=cached.table.width,
+            height=cached.table.height,
+            tolerance_px=tolerance,
+            max_points=max_points,
+        )
+    except detector_fit.FitError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {
+        "points": result.points,
+        "stats": result.stats,
+        "detections": len(detections),
+    }
 
 
 @app.get("/api/schema")

@@ -44,6 +44,7 @@ def _decode(
     target = table.pts[index]
     # Accurate input seek: ffmpeg seeks to the previous keyframe then decodes and
     # discards up to the requested timestamp.
+    filters = [*("-vf", ",".join(graph))] if graph else []
     cmd = [
         "ffmpeg",
         "-v",
@@ -57,8 +58,7 @@ def _decode(
         "1",
         "-an",
         "-sn",
-        "-vf",
-        ",".join(graph),
+        *filters,
         "-c:v",
         vcodec,
         *(extra or []),
@@ -186,6 +186,89 @@ class FrameDecoder:
 
     def close(self) -> None:
         self._pool.shutdown(wait=False, cancel_futures=True)
+
+
+def image_size(path: Path) -> tuple[int, int]:
+    """Pixel size of an encoded image, via ffprobe."""
+    out = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=width,height",
+            "-of",
+            "csv=p=0",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if out.returncode != 0:
+        raise FrameError(out.stderr.strip() or "ffprobe failed")
+    parts = out.stdout.strip().split(",")
+    if len(parts) < 2:
+        raise FrameError("unreadable image size")
+    return int(parts[0]), int(parts[1])
+
+
+def extract_range(
+    path: Path,
+    table: FrameTable,
+    start: int,
+    count: int,
+    out_dir: Path,
+    *,
+    width: int | None = None,
+    quality: int = 3,
+) -> tuple[list[Path], int, int]:
+    """Decode `count` consecutive frames starting at `start` in a single pass.
+
+    Returns (files in frame order, width, height).  Raises FrameError when the
+    pass does not produce exactly the expected frames.
+    """
+    if count <= 0:
+        return [], table.width, table.height
+    if start < 0 or start + count > table.frameCount:
+        raise FrameError("range outside the video")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for stale in out_dir.glob("*.jpg"):
+        stale.unlink()
+
+    graph = _build_graph(table)
+    if width is not None and width < table.width:
+        graph.append(f"scale={width}:-2:flags=bicubic")
+    target = table.pts[start]
+    cmd = [
+        "ffmpeg",
+        "-v",
+        "error",
+        "-y",
+        "-noautorotate",
+        "-ss",
+        f"{max(0.0, target):.6f}",
+        "-i",
+        str(path),
+        "-frames:v",
+        str(count),
+        "-q:v",
+        str(quality),
+        "-start_number",
+        "0",
+        *(("-vf", ",".join(graph)) if graph else ()),
+        str(out_dir / "%06d.jpg"),
+    ]
+    proc = subprocess.run(cmd, capture_output=True)
+    files = sorted(out_dir.glob("*.jpg"))
+    if proc.returncode != 0 or len(files) != count:
+        raise FrameError(
+            proc.stderr.decode("utf-8", "replace").strip()
+            or f"expected {count} frames, got {len(files)}"
+        )
+    out_width, out_height = image_size(files[0])
+    return files, out_width, out_height
 
 
 def frame_to_raw(image_bytes: bytes, width: int, height: int) -> bytes:

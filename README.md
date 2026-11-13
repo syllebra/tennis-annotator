@@ -125,6 +125,29 @@ geste, la loupe en place est ancrée sur le point et la croix suit le déplaceme
 peut aussi cliquer dans la loupe du panneau droit et utiliser la croix directionnelle (pas
 0,1 / 1 / 5 px par clic). L'image est décodée en pleine résolution depuis le fichier original.
 
+## Détecteurs optionnels (balle et court)
+
+Si le dépôt `../live-tennis-analyzer` est présent (ou le chemin renseigné dans
+**Bibliothèque → Détecteurs**), deux raccourcis apparaissent :
+
+- **Détecter le court** (panneau Séquence, et dans l'assistant) : appelle le détecteur de keypoints
+  sur la frame courante, crée une pose avec les 14 landmarks (les 4 coins servent à l'homographie,
+  les autres au contrôle) et affiche l'écart moyen. Au-delà de 25 px, un avertissement demande de
+  vérifier.
+- **try auto** (panneau Échanges, actif quand le playhead est entre deux impacts) : détecte la balle
+  frame par frame sur le segment, écarte les faux positifs par RANSAC, puis n'ajoute que les points
+  de passage nécessaires pour rester sous la tolérance (2 px, 8 points max par défaut). Le bandeau
+  indique points ajoutés, erreur max, frames retenues/rejetées, et signale les détections éparses ou
+  une trajectoire quasi immobile. Les points créés portent `source: auto` (halo pointillé) et tout
+  est annulable d'un `Ctrl+Z`.
+
+Les modèles tournent dans le dépôt voisin, jamais importés ici : un **worker persistant** est lancé
+au premier usage (~35 s à froid, quelques ms ensuite), arrêté après 15 min d'inactivité.
+**Préparer** précharge les modèles. Découverte : `TENNIS_ANALYZER_DIR`, puis le champ de
+configuration, puis `../live-tennis-analyzer`, puis un balayage des dossiers voisins. Si
+l'environnement Python du voisin est cassé (venv créé sous WSL par exemple), le diagnostic l'indique
+et l'outil utilise l'interpréteur `uv` du dépôt à la place.
+
 ## Ligne de commande
 
 ```bash

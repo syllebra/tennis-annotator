@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { api } from './api';
 import { PRESETS } from './math';
 import type {
+  DetectorSettings,
+  DetectorStatus,
   Document,
   Mismatch,
   Sequence,
@@ -73,6 +75,11 @@ interface AppState {
   loupeFocused: boolean;
   verifyZoom: number;
 
+  detectors: DetectorStatus | null;
+  detectorBusy: string | null;
+  autoTolerance: number;
+  autoMaxPoints: number;
+
   init: () => Promise<void>;
   refresh: () => Promise<void>;
   setRoot: (path: string) => Promise<void>;
@@ -93,6 +100,13 @@ interface AppState {
   setLoupeZoom: (zoom: number) => void;
   setLoupeFocused: (focused: boolean) => void;
   setVerifyZoom: (zoom: number) => void;
+
+  refreshDetectors: (refresh?: boolean) => Promise<void>;
+  warmupDetectors: () => Promise<void>;
+  saveDetectorSettings: (settings: DetectorSettings) => Promise<void>;
+  setAutoSettings: (settings: { tolerancePx?: number; maxPoints?: number }) => void;
+  detectCourt: () => Promise<void>;
+  autoBall: () => Promise<void>;
 
   setIn: () => void;
   setOut: () => void;
@@ -281,6 +295,10 @@ export const useStore = create<AppState>((set, get) => {
     loupeZoom: 10,
     loupeFocused: false,
     verifyZoom: 5,
+    detectors: null,
+    detectorBusy: null,
+    autoTolerance: 2,
+    autoMaxPoints: 8,
 
     notify: (message) => set({ toast: message }),
 
@@ -293,6 +311,7 @@ export const useStore = create<AppState>((set, get) => {
           libraryExists: list.exists,
           videos: list.videos,
         });
+        void get().refreshDetectors();
         // Deep link used by the global launcher: /?video=<relative path>
         const requested = new URLSearchParams(window.location.search).get('video');
         if (requested) {
@@ -443,6 +462,174 @@ export const useStore = create<AppState>((set, get) => {
     setLoupeZoom: (zoom) => set({ loupeZoom: Math.min(24, Math.max(4, zoom)) }),
     setLoupeFocused: (focused) => set({ loupeFocused: focused }),
     setVerifyZoom: (zoom) => set({ verifyZoom: Math.min(12, Math.max(2, zoom)) }),
+
+    refreshDetectors: async (refresh = false) => {
+      try {
+        const status = await api.detectors(refresh);
+        const settings = status.settings || {};
+        set({
+          detectors: status,
+          autoTolerance: settings.tolerancePx ?? 2,
+          autoMaxPoints: settings.maxPoints ?? 8,
+        });
+      } catch {
+        set({ detectors: null });
+      }
+    },
+
+    warmupDetectors: async () => {
+      set({ detectorBusy: 'Préparation des détecteurs (chargement des modèles)…' });
+      try {
+        await api.warmupDetectors();
+        for (let attempt = 0; attempt < 120; attempt += 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, 1500));
+          const status = await api.detectors();
+          set({ detectors: status });
+          if (status.worker.state === 'ready' || status.worker.state === 'error') break;
+        }
+        const status = get().detectors;
+        set({
+          detectorBusy: null,
+          toast:
+            status?.worker.state === 'ready'
+              ? 'Détecteurs prêts.'
+              : `Détecteurs : ${status?.worker.message || 'échec du chargement'}`,
+        });
+      } catch (error) {
+        set({ detectorBusy: null, toast: `Détecteurs : ${(error as Error).message}` });
+      }
+    },
+
+    saveDetectorSettings: async (settings) => {
+      try {
+        await api.setDetectorSettings(settings);
+        await get().refreshDetectors(true);
+      } catch (error) {
+        set({ toast: `Réglages détecteurs : ${(error as Error).message}` });
+      }
+    },
+
+    setAutoSettings: (settings) => {
+      const state = get();
+      const tolerancePx =
+        settings.tolerancePx !== undefined ? settings.tolerancePx : state.autoTolerance;
+      const maxPoints =
+        settings.maxPoints !== undefined ? settings.maxPoints : state.autoMaxPoints;
+      set({ autoTolerance: tolerancePx, autoMaxPoints: maxPoints });
+      void api
+        .setDetectorSettings({ tolerancePx, maxPoints })
+        .catch(() => undefined);
+    },
+
+    detectCourt: async () => {
+      frameNow();
+      const state = get();
+      if (!state.activeId || !state.doc) return;
+      const sequence = activeSequenceOf(state);
+      if (!sequence) {
+        set({ toast: 'Place le playhead dans une séquence pour détecter le court.' });
+        return;
+      }
+      const frame = state.currentFrame;
+      set({
+        detectorBusy: 'Détection du court…',
+        toast: null,
+        wizard: null,
+        tool: 'select',
+      });
+      try {
+        const result = await api.autoCourt(state.activeId, frame);
+        commit((doc) => {
+          const target = doc.sequences.find((s) => s.id === sequence.id)!;
+          target.court.keyframes = target.court.keyframes.filter((k) => k.t !== frame);
+          target.court.keyframes.push({
+            t: frame,
+            source: 'auto',
+            landmarks: result.landmarks,
+          });
+        }, { select: null });
+        const mean = result.quality.meanPx;
+        set({
+          detectorBusy: null,
+          toast: `Court détecté à #${frame} · écart moyen ${mean.toFixed(1)} px${
+            mean > 25 ? ' — vérifie les points, le repérage est douteux' : ''
+          }`,
+        });
+      } catch (error) {
+        set({ detectorBusy: null, toast: `Détection du court : ${(error as Error).message}` });
+      }
+    },
+
+    autoBall: async () => {
+      frameNow();
+      const state = get();
+      if (!state.activeId || !state.doc) return;
+      const id = state.activeTrajectoryId;
+      if (!id) {
+        set({ toast: 'Sélectionne un échange avant de lancer l’auto.' });
+        return;
+      }
+      const found = findTrajectory(state.doc, id);
+      if (!found) return;
+      const anchors = found.traj.points
+        .filter((point) => point.kind === 'anchor')
+        .sort((a, b) => a.t - b.t);
+      const frame = state.currentFrame;
+      let segment = -1;
+      for (let index = 0; index < anchors.length - 1; index += 1) {
+        if (anchors[index]!.t <= frame && frame <= anchors[index + 1]!.t) {
+          segment = index;
+          break;
+        }
+      }
+      if (segment < 0) {
+        set({ toast: 'Place le playhead entre deux impacts pour lancer l’auto.' });
+        return;
+      }
+      const first = anchors[segment]!;
+      const last = anchors[segment + 1]!;
+      if (last.t - first.t < 2) {
+        set({ toast: 'Ce segment ne contient aucune frame entre les deux ancres.' });
+        return;
+      }
+      set({ detectorBusy: `Détection de la balle #${first.t}–#${last.t}…`, toast: null });
+      try {
+        const result = await api.autoBall(state.activeId, {
+          trajectoryId: id,
+          anchorA: { t: first.t, x: first.x, y: first.y },
+          anchorB: { t: last.t, x: last.x, y: last.y },
+          tolerancePx: state.autoTolerance,
+          maxPoints: state.autoMaxPoints,
+          occlusions: found.traj.occlusions,
+        });
+        commit((doc) => {
+          const traj = findTrajectory(doc, id)!.traj;
+          traj.points = traj.points.filter(
+            (point) => point.t <= first.t || point.t >= last.t,
+          );
+          for (const point of result.points) {
+            traj.points.push({ t: point.t, x: point.x, y: point.y, kind: 'path', source: 'auto' });
+          }
+          traj.points.sort((a, b) => a.t - b.t);
+        }, { select: null });
+        const stats = result.stats;
+        const warnings: string[] = [];
+        if (stats.coverage < 0.4) {
+          warnings.push(`détections éparses (${Math.round(stats.coverage * 100)} % du segment)`);
+        }
+        if (stats.displacement_px < 40) {
+          warnings.push('trajectoire quasi immobile — le détecteur a peut-être suivi autre chose');
+        }
+        set({
+          detectorBusy: null,
+          toast: `Auto #${first.t}–#${last.t} : ${stats.added} point(s) · erreur max ${stats.max_error_px} px · ${stats.frames_used} frames retenues, ${stats.rejected} rejetées${
+            stats.reached_tolerance ? '' : ' · max de points atteint'
+          }${warnings.length ? ` — attention : ${warnings.join(' ; ')}` : ''}`,
+        });
+      } catch (error) {
+        set({ detectorBusy: null, toast: `Auto balle : ${(error as Error).message}` });
+      }
+    },
 
     setIn: () => {
       frameNow();

@@ -1,5 +1,9 @@
 import type {
+  AutoBallResult,
+  AutoCourtResult,
   BrowseResult,
+  DetectorSettings,
+  DetectorStatus,
   Document,
   LoadedAnnotations,
   VideoList,
@@ -51,6 +55,35 @@ export const api = {
     request<{ saved: boolean }>(`/videos/${id}/adopt`, {
       method: 'POST',
       body: JSON.stringify(doc),
+    }),
+  detectors: (refresh = false) =>
+    request<DetectorStatus>(`/detectors${refresh ? '?refresh=true' : ''}`),
+  warmupDetectors: () =>
+    request<DetectorStatus>('/detectors/warmup', { method: 'POST' }),
+  setDetectorSettings: (detectors: DetectorSettings) =>
+    request<{ detectors: DetectorSettings }>('/config', {
+      method: 'PUT',
+      body: JSON.stringify({ detectors }),
+    }),
+  autoCourt: (id: string, frame: number) =>
+    request<AutoCourtResult>(`/videos/${id}/auto/court`, {
+      method: 'POST',
+      body: JSON.stringify({ frame }),
+    }),
+  autoBall: (
+    id: string,
+    payload: {
+      trajectoryId: string;
+      anchorA: { t: number; x: number; y: number };
+      anchorB: { t: number; x: number; y: number };
+      tolerancePx?: number;
+      maxPoints?: number;
+      occlusions?: { from: number; to: number }[];
+    },
+  ) =>
+    request<AutoBallResult>(`/videos/${id}/auto/ball`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
     }),
   mediaUrl: (id: string) => `${BASE}/videos/${id}/media`,
   frameUrl: (id: string, n: number, w?: number) =>

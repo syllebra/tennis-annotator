@@ -264,6 +264,15 @@ export function drawOverlay(
           ctx.arc(x, y, POINT_RADIUS + 0.5, 0, Math.PI * 2);
           ctx.fill();
         }
+        if (point.source === 'auto') {
+          ctx.strokeStyle = 'rgba(120,220,255,0.9)';
+          ctx.lineWidth = 1.2;
+          ctx.setLineDash([2, 2]);
+          ctx.beginPath();
+          ctx.arc(x, y, POINT_RADIUS + 4, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
         if (selected) {
           ctx.strokeStyle = '#ffffff';
           ctx.lineWidth = 2;

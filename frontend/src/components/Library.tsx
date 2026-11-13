@@ -15,11 +15,17 @@ export function Library() {
   const videos = useStore((s) => s.videos);
   const libraryExists = useStore((s) => s.libraryExists);
   const toast = useStore((s) => s.toast);
+  const detectors = useStore((s) => s.detectors);
+  const detectorBusy = useStore((s) => s.detectorBusy);
   const [path, setPath] = useState(root);
+  const [detectorPath, setDetectorPath] = useState('');
   const [filter, setFilter] = useState('');
   const [browse, setBrowse] = useState<BrowseResult | null>(null);
 
   useEffect(() => setPath(root), [root]);
+  useEffect(() => {
+    setDetectorPath(detectors?.settings?.analyzerPath || detectors?.path || '');
+  }, [detectors?.path, detectors?.settings?.analyzerPath]);
 
   const openBrowser = async (target?: string) => {
     try {
@@ -95,6 +101,69 @@ export function Library() {
         ))}
         {shown.length === 0 && <li className="empty">Aucune vidéo dans ce dossier.</li>}
       </ul>
+
+      <section className="detectors-panel">
+        <div className="detectors-head">
+          <span className="panel-title">Détecteurs</span>
+          <span className={detectors?.available ? 'chip on' : 'chip'}>
+            {detectors?.available ? 'disponibles' : 'indisponibles'}
+          </span>
+          <span className="mono subtle">
+            {detectors?.worker.state ?? '—'}
+            {detectors?.worker.pid ? ` · pid ${detectors.worker.pid}` : ''}
+          </span>
+          <span className="spacer" />
+          <span className="subtle small">
+            optionnel — balle et court, fournis par le projet analyseur
+          </span>
+        </div>
+        <div className="library-root">
+          <input
+            value={detectorPath}
+            onChange={(event) => setDetectorPath(event.target.value)}
+            placeholder="découverte automatique (../live-tennis-analyzer)"
+            spellCheck={false}
+          />
+          <button
+            className="btn"
+            onClick={() =>
+              void useStore.getState().saveDetectorSettings({ analyzerPath: detectorPath })
+            }
+          >
+            Enregistrer
+          </button>
+          <button
+            className="btn ghost"
+            onClick={() => void useStore.getState().refreshDetectors(true)}
+          >
+            Vérifier
+          </button>
+          <button
+            className="btn ghost"
+            onClick={() => void useStore.getState().warmupDetectors()}
+            disabled={!detectors?.available || detectorBusy !== null}
+          >
+            {detectorBusy?.startsWith('Préparation') ? 'Préparation…' : 'Préparer'}
+          </button>
+        </div>
+        <p className="hint subtle">
+          {detectors?.message ?? 'Statut inconnu.'}
+          {detectors?.checks && !detectors.available && (
+            <>
+              {' '}
+              (
+              {Object.entries(detectors.checks)
+                .map(([name, ok]) => `${name} ${ok ? '✓' : '✗'}`)
+                .join(' · ')}
+              )
+            </>
+          )}
+        </p>
+        {detectors?.interpreter?.note && (
+          <p className="hint subtle small">interpréteur : {detectors.interpreter.note}</p>
+        )}
+        {detectorBusy && <p className="hint warn">{detectorBusy}</p>}
+      </section>
 
       {browse && (
         <div className="modal" onClick={() => setBrowse(null)}>

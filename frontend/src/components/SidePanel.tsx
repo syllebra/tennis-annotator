@@ -107,6 +107,10 @@ export function SidePanel() {
   const wizard = useStore((s) => s.wizard);
   const tool = useStore((s) => s.tool);
   const occlusionStart = useStore((s) => s.occlusionStart);
+  const detectors = useStore((s) => s.detectors);
+  const detectorBusy = useStore((s) => s.detectorBusy);
+  const autoTolerance = useStore((s) => s.autoTolerance);
+  const autoMaxPoints = useStore((s) => s.autoMaxPoints);
   const [nudgeStep, setNudgeStep] = useState(1);
 
   if (!doc || !meta) return null;
@@ -120,6 +124,16 @@ export function SidePanel() {
     selection?.kind === 'point' && traj ? traj.points[selection.index] ?? null : null;
   const selectedLandmark = selection?.kind === 'landmark' ? selection.landmarkId : null;
   const impacts = traj ? traj.points.filter((p) => p.kind === 'anchor') : [];
+  const segment = (() => {
+    if (!traj) return null;
+    const ordered = traj.points.filter((p) => p.kind === 'anchor').sort((a, b) => a.t - b.t);
+    for (let index = 0; index < ordered.length - 1; index += 1) {
+      if (ordered[index]!.t <= frame && frame <= ordered[index + 1]!.t) {
+        return { first: ordered[index]!, last: ordered[index + 1]! };
+      }
+    }
+    return null;
+  })();
   const poseIndex = sequence
     ? sequence.court.keyframes.findIndex((k) => k.t === frame)
     : -1;
@@ -296,6 +310,16 @@ export function SidePanel() {
               <button className="btn small" onClick={() => store.startCourtWizard()}>
                 {keyframe ? 'Reposer le court (C)' : 'Poser le court (C)'}
               </button>
+              {detectors?.available && (
+                <button
+                  className="btn small"
+                  onClick={() => void store.detectCourt()}
+                  disabled={detectorBusy !== null}
+                  title="Détecte les 4 coins sur la frame courante (option bêta)"
+                >
+                  Détecter le court
+                </button>
+              )}
               <button
                 className="btn small ghost"
                 onClick={() => store.toggleMirror()}
@@ -353,6 +377,11 @@ export function SidePanel() {
                     </li>
                   ))}
                 </ol>
+                {detectors?.available && (
+                  <button className="btn small" onClick={() => void store.detectCourt()}>
+                    Détecter automatiquement
+                  </button>
+                )}
                 <button className="btn small ghost" onClick={() => store.cancelWizard()}>
                   annuler
                 </button>
@@ -447,6 +476,42 @@ export function SidePanel() {
                   </button>
                 );
               })}
+            </div>
+
+            <div className="auto-ball">
+              {detectors?.available ? (
+                <>
+                  <div className="row">
+                    <button
+                      className="btn small"
+                      onClick={() => void store.autoBall()}
+                      disabled={!segment || detectorBusy !== null}
+                      title="Détecte la balle entre les deux impacts et n’ajoute que les points nécessaires"
+                    >
+                      try auto{segment ? ` #${segment.first.t}–#${segment.last.t}` : ''}
+                    </button>
+                    <NumberField
+                      label="tol px"
+                      value={autoTolerance}
+                      min={0.5}
+                      max={60}
+                      onChange={(value) => store.setAutoSettings({ tolerancePx: value })}
+                    />
+                    <NumberField
+                      label="max"
+                      value={autoMaxPoints}
+                      min={1}
+                      max={20}
+                      onChange={(value) => store.setAutoSettings({ maxPoints: value })}
+                    />
+                  </div>
+                  {!segment && (
+                    <p className="hint small">
+                      Place le playhead entre deux impacts pour activer l’auto.
+                    </p>
+                  )}
+                </>
+              ) : null}
             </div>
 
             <div className="row">

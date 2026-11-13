@@ -152,3 +152,56 @@ export interface BrowseResult {
   parent: string;
   entries: BrowseEntry[];
 }
+
+export interface DetectorWorker {
+  state: 'idle' | 'starting' | 'ready' | 'error' | 'unavailable';
+  message: string;
+  pid: number | null;
+  configured: boolean;
+}
+
+export interface DetectorSettings {
+  analyzerPath?: string;
+  ballThreshold?: number;
+  tolerancePx?: number;
+  maxPoints?: number;
+}
+
+export interface DetectorStatus {
+  available: boolean;
+  path: string | null;
+  source: string;
+  checks: Record<string, boolean>;
+  models: { court: string | null; ball: string | null };
+  interpreter: { command: string[] | null; note: string | null };
+  message: string;
+  worker: DetectorWorker;
+  settings: DetectorSettings;
+}
+
+export interface AutoCourtResult {
+  frame: number;
+  width: number;
+  height: number;
+  landmarks: Record<string, XY>;
+  quality: { meanPx: number; maxPx: number; points: number };
+  keypoints: [number, number][];
+}
+
+export interface AutoBallResult {
+  points: { t: number; x: number; y: number; kind: 'path'; source: 'auto' }[];
+  stats: {
+    added: number;
+    max_error_px: number;
+    rms_error_px: number;
+    frames_used: number;
+    tolerance_px: number;
+    max_points: number;
+    reached_tolerance: boolean;
+    detections: number;
+    rejected: number;
+    coverage: number;
+    displacement_px: number;
+  };
+  detections: number;
+}
