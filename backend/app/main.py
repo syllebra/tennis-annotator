@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import shutil
@@ -11,11 +12,18 @@ from pathlib import Path
 
 import numpy as np
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from . import annotations, library, probe
+from .auth import COOKIE_NAME, auth, login_page
 from .config import CACHE_DIR, load_config, save_config
 from .detectors import court as court_detector
 from .detectors import detector_discovery
@@ -28,6 +36,86 @@ from .proxy import proxy_manager
 from .schema import Document
 
 app = FastAPI(title="Tennis Annotator", version="0.1.0")
+
+PUBLIC_API = {"/api/auth/status", "/api/auth/login", "/api/auth/logout"}
+
+
+@app.middleware("http")
+async def auth_guard(request: Request, call_next):
+    """Token gate: the SPA, its assets and every API route require a session."""
+    path = request.url.path
+    token = request.query_params.get("token")
+    if token is not None and not path.startswith("/api/"):
+        if auth.check_token(token):
+            response = RedirectResponse(url=path or "/", status_code=303)
+            auth.attach(response)
+            return response
+        return HTMLResponse(login_page("Token invalide."), status_code=401)
+    if path in PUBLIC_API:
+        return await call_next(request)
+    if auth.valid_session(request.cookies.get(COOKIE_NAME)):
+        return await call_next(request)
+    if path.startswith("/api/"):
+        return JSONResponse({"detail": "authentification requise"}, status_code=401)
+    if path in ("/", "/index.html"):
+        return HTMLResponse(login_page())
+    return Response(status_code=401)
+
+
+@app.on_event("startup")
+def _announce_auth() -> None:
+    if auth.created:
+        print(f"[auth] nouveau token d'accès : {auth.token}")
+        print(f"[auth] il est enregistré dans {auth.path}")
+    else:
+        print(f"[auth] interface protégée — token dans {auth.path}")
+
+
+@app.get("/api/auth/status")
+def auth_status(request: Request) -> dict:
+    return {
+        "required": auth.required,
+        "authenticated": auth.valid_session(request.cookies.get(COOKIE_NAME)),
+    }
+
+
+@app.post("/api/auth/login")
+async def auth_login(request: Request):
+    content_type = request.headers.get("content-type", "")
+    token: str | None = None
+    wants_html = True
+    if "application/json" in content_type:
+        wants_html = "text/html" in request.headers.get("accept", "")
+        try:
+            body = await request.json()
+        except Exception:  # noqa: BLE001 - malformed body means "no token"
+            body = {}
+        if isinstance(body, dict):
+            token = body.get("token")
+    else:
+        form = await request.form()
+        value = form.get("token")
+        token = str(value) if value is not None else None
+
+    if not auth.check_token(token):
+        await asyncio.sleep(0.2)
+        if wants_html:
+            return HTMLResponse(login_page("Token invalide."), status_code=401)
+        raise HTTPException(401, "token invalide")
+
+    if wants_html:
+        response: Response = RedirectResponse(url="/", status_code=303)
+    else:
+        response = JSONResponse({"ok": True})
+    auth.attach(response)
+    return response
+
+
+@app.post("/api/auth/logout")
+def auth_logout() -> Response:
+    response = JSONResponse({"ok": True})
+    auth.clear(response)
+    return response
 
 _ROOT = Path(__file__).resolve().parents[2]
 _DIST = _ROOT / "frontend" / "dist"

@@ -125,6 +125,25 @@ geste, la loupe en place est ancrée sur le point et la croix suit le déplaceme
 peut aussi cliquer dans la loupe du panneau droit et utiliser la croix directionnelle (pas
 0,1 / 1 / 5 px par clic). L'image est décodée en pleine résolution depuis le fichier original.
 
+## Accès protégé par token
+
+Au premier démarrage, le backend génère un token aléatoire, l'écrit dans
+`~/.config/tennis-annotator/auth.json` (droits `0600`) et l'affiche dans la console. L'interface HTML
+**et** toutes les routes `/api/*` exigent une session : sans cookie valide, le serveur renvoie une
+page de login, et l'API répond `401`.
+
+- Le **lanceur global** lit le token et ouvre `http://127.0.0.1:8001/?token=…`, qui pose le cookie
+  puis redirige : rien à saisir.
+- À la main : ouvrir l'URL, coller le token dans la page.
+- `TENNIS_ANNOTATOR_TOKEN=…` force un token (script, test, conteneur) et n'écrit aucun fichier.
+- Session : cookie `HttpOnly` signé en HMAC-SHA256, valable 30 jours ; changer le token invalide
+  toutes les sessions. Le bouton **verrouiller** (bibliothèque) ferme la session.
+- Réinitialiser : supprimer `auth.json` et redémarrer.
+- Limite assumée : c'est un secret partagé pour un outil local mono-utilisateur, pas un système de
+  comptes. Quiconque peut lire le fichier peut entrer, et le trafic n'est pas chiffré — le token
+  protège contre un accès accidentel au port (autre processus, tunnel, bind mal configuré), pas
+  contre quelqu'un qui a déjà la main sur la machine.
+
 ## Détecteurs optionnels (balle et court)
 
 Si le dépôt `../live-tennis-analyzer` est présent (ou le chemin renseigné dans

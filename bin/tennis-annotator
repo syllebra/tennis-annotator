@@ -127,11 +127,32 @@ attach() {
   exit 0
 }
 
+auth_file() {
+  printf '%s/tennis-annotator/auth.json' "${XDG_CONFIG_HOME:-$HOME/.config}"
+}
+
+auth_token() {
+  if [ -n "${TENNIS_ANNOTATOR_TOKEN:-}" ]; then
+    printf '%s' "$TENNIS_ANNOTATOR_TOKEN"
+    return 0
+  fi
+  local file
+  file="$(auth_file)"
+  [ -f "$file" ] || return 0
+  "$PY" -c 'import json,sys;print(json.load(open(sys.argv[1])).get("token",""))' "$file" 2>/dev/null || true
+}
+
 url_for() {
-  local port="$1"
+  local port="$1" query="" token
+  token="$(auth_token)"
   if [ -n "$URL_PATH" ]; then
-    printf 'http://127.0.0.1:%s/?video=%s' "$port" \
-      "$("$PY" -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1]))' "$URL_PATH")"
+    query="video=$("$PY" -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1]))' "$URL_PATH")"
+  fi
+  if [ -n "$token" ]; then
+    query="${query:+$query&}token=$token"
+  fi
+  if [ -n "$query" ]; then
+    printf 'http://127.0.0.1:%s/?%s' "$port" "$query"
   else
     printf 'http://127.0.0.1:%s/' "$port"
   fi
@@ -223,13 +244,16 @@ port_free "$PORT" || fail "Aucun port libre entre $PORT et $((PORT + 30))."
 URL="$(url_for "$PORT")"
 printf '%s\n' "$PORT" > "$STATE_DIR/instance.port"
 printf 'Tennis Annotator → %s\n' "$URL"
+printf 'Token d’accès : %s\n' "$(auth_file)"
 printf 'Journaux : %s\n' "$LOG"
 
 if [ "$OPEN_BROWSER" = 1 ]; then
   (
     for _ in $(seq 1 150); do
       if health_ok "$PORT"; then
-        xdg-open "$URL" >/dev/null 2>&1 || true
+        # recomputed after startup: on the very first run the token file only
+        # exists once the server is up
+        xdg-open "$(url_for "$PORT")" >/dev/null 2>&1 || true
         exit 0
       fi
       sleep 0.2

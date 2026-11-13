@@ -26,7 +26,10 @@ const step = (name) => console.log(`· ${name}`);
 const click = (selector) => page.click(selector);
 const text = async (selector) => (await page.textContent(selector)) ?? '';
 
-await page.goto(base, { waitUntil: 'networkidle' });
+const token = process.env.TENNIS_ANNOTATOR_TOKEN;
+await page.goto(token ? `${base}/?token=${encodeURIComponent(token)}` : base, {
+  waitUntil: 'networkidle',
+});
 step('library loaded');
 await page.waitForSelector('.video-list li', { timeout: 10000 });
 await page.click('.video-list li');

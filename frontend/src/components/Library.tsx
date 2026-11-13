@@ -47,7 +47,18 @@ export function Library() {
   return (
     <div className="library">
       <header className="library-head">
-        <h1>Tennis Annotator</h1>
+        <div className="library-title">
+          <h1>Tennis Annotator</h1>
+          <button
+            className="btn tiny ghost"
+            title="Fermer la session : le token sera redemandé"
+            onClick={() => {
+              void api.logout().finally(() => window.location.reload());
+            }}
+          >
+            verrouiller
+          </button>
+        </div>
         <div className="library-root">
           <input
             value={path}

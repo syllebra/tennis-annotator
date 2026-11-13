@@ -7,11 +7,16 @@ from app.main import app
 from conftest import requires_ffmpeg
 from test_schema import document
 
-client = TestClient(app)
+@pytest.fixture(scope="module")
+def client():
+    with TestClient(app) as test_client:
+        response = test_client.post("/api/auth/login", json={"token": "test-token"})
+        assert response.status_code == 200
+        yield test_client
 
 
 @requires_ffmpeg
-def test_library_and_frames(test_video, tmp_path) -> None:
+def test_library_and_frames(client, test_video, tmp_path) -> None:
     path, _, width, height = test_video
     root = tmp_path / "videos"
     root.mkdir()
@@ -38,7 +43,7 @@ def test_library_and_frames(test_video, tmp_path) -> None:
 
 
 @requires_ffmpeg
-def test_annotation_roundtrip(test_video, tmp_path) -> None:
+def test_annotation_roundtrip(client, test_video, tmp_path) -> None:
     path, _, _, _ = test_video
     root = tmp_path / "videos2"
     root.mkdir()
@@ -64,11 +69,11 @@ def test_annotation_roundtrip(test_video, tmp_path) -> None:
     assert status == "progress"
 
 
-def test_schema_endpoint() -> None:
+def test_schema_endpoint(client) -> None:
     body = client.get("/api/schema").json()
     assert body["title"] == "Document"
     assert "sequences" in body["properties"]
 
 
-def test_health() -> None:
+def test_health(client) -> None:
     assert client.get("/api/health").json()["ok"] is True

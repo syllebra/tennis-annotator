@@ -6,6 +6,8 @@ from pathlib import Path
 _TEST_HOME = Path(tempfile.mkdtemp(prefix="tennis-test-"))
 os.environ["XDG_CONFIG_HOME"] = str(_TEST_HOME / "config")
 os.environ["XDG_CACHE_HOME"] = str(_TEST_HOME / "cache")
+# Fixed token so the API tests can authenticate; no auth.json is written.
+os.environ["TENNIS_ANNOTATOR_TOKEN"] = "test-token"
 
 import subprocess  # noqa: E402
 

@@ -17,6 +17,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers: init?.body ? { 'Content-Type': 'application/json' } : undefined,
     ...init,
   });
+  if (response.status === 401 && !path.startsWith('/auth/')) {
+    const last = Number(window.sessionStorage.getItem('tauth-reload') || '0');
+    if (Date.now() - last > 5000) {
+      window.sessionStorage.setItem('tauth-reload', String(Date.now()));
+      window.location.reload();
+    }
+  }
   if (!response.ok) {
     let detail = `${response.status} ${response.statusText}`;
     try {
@@ -32,6 +39,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   health: () => request<{ ok: boolean }>('/health'),
+  logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
   config: () => request<{ videoRoot: string; proxy: boolean }>('/config'),
   setRoot: (videoRoot: string) =>
     request<{ videoRoot: string }>('/config', {
