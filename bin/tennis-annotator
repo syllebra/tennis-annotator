@@ -14,6 +14,8 @@ set -euo pipefail
 
 APP_DIR="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/.." && pwd)"
 PORT="${TENNIS_ANNOTATOR_PORT:-8001}"
+HOST="${TENNIS_ANNOTATOR_HOST:-127.0.0.1}"
+DISPLAY_HOST="127.0.0.1"
 OPEN_BROWSER=1
 REBUILD=0
 TARGET=""
@@ -26,6 +28,7 @@ Sans argument, ouvre l'interface sur le dernier dossier utilisé.
 Un dossier devient la racine des vidéos ; un fichier ouvre sa vidéo.
 
 Options :
+  --host H        interface d'écoute (défaut 127.0.0.1 ; 0.0.0.0 = réseau local)
   --port N        port d'écoute (défaut 8001, ou $TENNIS_ANNOTATOR_PORT)
   --no-browser    ne pas ouvrir le navigateur
   --rebuild       reconstruire le frontend avant de lancer
@@ -38,12 +41,19 @@ while [ $# -gt 0 ]; do
     -h|--help) usage; exit 0 ;;
     --no-browser) OPEN_BROWSER=0 ;;
     --rebuild) REBUILD=1 ;;
+    --host) shift; HOST="${1:?--host attend une valeur}" ;;
     --port) shift; PORT="${1:?--port attend une valeur}" ;;
     -*) printf 'tennis-annotator: option inconnue %s\n' "$1" >&2; exit 2 ;;
     *) TARGET="$1" ;;
   esac
   shift
 done
+
+case "$HOST" in
+  127.0.0.1|localhost|::1) DISPLAY_HOST="127.0.0.1" ;;
+  0.0.0.0|"") DISPLAY_HOST="127.0.0.1" ;;
+  *) DISPLAY_HOST="$HOST" ;;
+esac
 
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/tennis-annotator"
 LOG="$STATE_DIR/server.log"
@@ -77,18 +87,29 @@ find_tool() {
   return 1
 }
 
-health_ok() {
-  curl -fsS --max-time 1 "http://127.0.0.1:$1/api/health" 2>/dev/null |
+health_at() {
+  curl -fsS --max-time 1 "http://$1:$2/api/health" 2>/dev/null |
     grep -q 'tennis-annotator'
 }
 
+health_ok() {
+  local port="$1"
+  health_at 127.0.0.1 "$port" && return 0
+  if [ "$DISPLAY_HOST" != "127.0.0.1" ]; then
+    health_at "$DISPLAY_HOST" "$port" && return 0
+  fi
+  return 1
+}
+
 port_free() {
-  "$PY" - "$1" <<'PY'
+  "$PY" - "$1" "$HOST" <<'PY'
 import socket, sys
-sock = socket.socket()
+host = sys.argv[2]
+family = socket.AF_INET6 if ":" in host else socket.AF_INET
+sock = socket.socket(family)
 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 try:
-    sock.bind(("127.0.0.1", int(sys.argv[1])))
+    sock.bind((host, int(sys.argv[1])))
 except OSError:
     sys.exit(1)
 finally:
@@ -98,14 +119,16 @@ PY
 
 instance_port() {
   local file="$STATE_DIR/instance.port"
-  local candidate
+  local hostfile="$STATE_DIR/instance.host"
+  local candidate host="127.0.0.1"
   if [ -f "$file" ]; then
     candidate="$(cat "$file" 2>/dev/null || true)"
-    if [ -n "$candidate" ] && health_ok "$candidate"; then
+    [ -f "$hostfile" ] && host="$(cat "$hostfile" 2>/dev/null || echo 127.0.0.1)"
+    if [ -n "$candidate" ] && { health_at 127.0.0.1 "$candidate" || health_at "$host" "$candidate"; }; then
       printf '%s\n' "$candidate"
       return 0
     fi
-    rm -f "$file"
+    rm -f "$file" "$hostfile"
   fi
   for candidate in $(seq "$PORT" $((PORT + 30))); do
     if health_ok "$candidate"; then
@@ -152,9 +175,9 @@ url_for() {
     query="${query:+$query&}token=$token"
   fi
   if [ -n "$query" ]; then
-    printf 'http://127.0.0.1:%s/?%s' "$port" "$query"
+    printf 'http://%s:%s/?%s' "$DISPLAY_HOST" "$port" "$query"
   else
-    printf 'http://127.0.0.1:%s/' "$port"
+    printf 'http://%s:%s/' "$DISPLAY_HOST" "$port"
   fi
 }
 
@@ -243,9 +266,20 @@ port_free "$PORT" || fail "Aucun port libre entre $PORT et $((PORT + 30))."
 
 URL="$(url_for "$PORT")"
 printf '%s\n' "$PORT" > "$STATE_DIR/instance.port"
+printf '%s\n' "$DISPLAY_HOST" > "$STATE_DIR/instance.host"
 printf 'Tennis Annotator → %s\n' "$URL"
 printf 'Token d’accès : %s\n' "$(auth_file)"
 printf 'Journaux : %s\n' "$LOG"
+case "$HOST" in
+  127.0.0.1|localhost|::1) ;;
+  *)
+    printf '⚠ écoute sur %s : le token protège l’accès, mais le trafic n’est pas chiffré.\n' "$HOST"
+    lan_ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i <= NF; i++) if ($i == "src") { print $(i + 1); exit }}')"
+    if [ -n "$lan_ip" ]; then
+      printf '   accès réseau : http://%s:%s/\n' "$lan_ip" "$PORT"
+    fi
+    ;;
+esac
 
 if [ "$OPEN_BROWSER" = 1 ]; then
   (
@@ -264,9 +298,9 @@ fi
 cd "$APP_DIR"
 if [ -t 1 ]; then
   "$PY" -m uvicorn app.main:app --app-dir "$APP_DIR/backend" \
-    --host 127.0.0.1 --port "$PORT" 2>&1 | tee -a "$LOG"
+    --host "$HOST" --port "$PORT" 2>&1 | tee -a "$LOG"
   exit "${PIPESTATUS[0]}"
 else
   exec "$PY" -m uvicorn app.main:app --app-dir "$APP_DIR/backend" \
-    --host 127.0.0.1 --port "$PORT" >>"$LOG" 2>&1
+    --host "$HOST" --port "$PORT" >>"$LOG" 2>&1
 fi

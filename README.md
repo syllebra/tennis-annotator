@@ -35,6 +35,7 @@ tennis-annotator                     # dernier dossier utilisé
 tennis-annotator ~/Videos/tennis     # définit la racine des vidéos
 tennis-annotator ~/Videos/a.mp4      # ouvre directement cette vidéo
 tennis-annotator --no-browser --port 9000
+tennis-annotator --host 0.0.0.0 --port 8123   # accessible sur le réseau local
 tennis-annotator --rebuild           # reconstruit le frontend avant de lancer
 ```
 
@@ -139,10 +140,13 @@ page de login, et l'API répond `401`.
 - Session : cookie `HttpOnly` signé en HMAC-SHA256, valable 30 jours ; changer le token invalide
   toutes les sessions. Le bouton **verrouiller** (bibliothèque) ferme la session.
 - Réinitialiser : supprimer `auth.json` et redémarrer.
+- `--host 0.0.0.0` expose l'interface au réseau local ; le lanceur affiche alors l'adresse réseau et
+  un avertissement. Le token protège l'accès, mais **le trafic n'est pas chiffré** : ne partage
+  pas une URL contenant `?token=…` sur un réseau non sûr (le token passerait en clair).
 - Limite assumée : c'est un secret partagé pour un outil local mono-utilisateur, pas un système de
-  comptes. Quiconque peut lire le fichier peut entrer, et le trafic n'est pas chiffré — le token
-  protège contre un accès accidentel au port (autre processus, tunnel, bind mal configuré), pas
-  contre quelqu'un qui a déjà la main sur la machine.
+  comptes. Quiconque peut lire le fichier peut entrer — le token protège contre un accès accidentel
+  au port (autre processus, tunnel, bind mal configuré), pas contre quelqu'un qui a déjà la main
+  sur la machine.
 
 ## Détecteurs optionnels (balle et court)
 
