@@ -90,7 +90,11 @@ une séquence, place le court, annote un trajet, recharge la page et vérifie la
 3. **Poser le court** : bouton **Poser le court**, puis appuyer sur les 4 points dans l'ordre
    indiqué — le panneau affiche le nom de chaque point (« Coin double gauche (proche) », …) et un
    schéma numéroté. Chaque coin s'ajuste **avec le même geste que la balle** : appui → loupe en
-   place ×10 → glisser → relâcher. Si la caméra bouge, se placer ailleurs et reposer.
+   place ×10 → glisser → relâcher. Si la caméra bouge, se placer ailleurs et reposer : chaque pose
+   apparaît comme un losange dans la timeline (ligne **court**), et les poses se naviguent avec
+   `◀ pose` / `pose ▶`. À une pose, les 4 points sont listés dans le panneau : en cliquer un le
+   sélectionne pour l'ajuster individuellement (glisser sur la vidéo ou croix directionnelle).
+   Entre deux poses, le court se déplace en **interpolation linéaire** (aucun dépassement).
 4. **Créer un échange** : **+ nouvel échange** à la frame de la balle.
 5. **Annoter** : **+ ancre** puis appuyer sur la balle — une **loupe en place ×10** apparaît sous le
    curseur, glisser pour ajuster au sub-pixel, relâcher pour valider. Même geste avec **+ point de

@@ -8,6 +8,30 @@ import { CourtDiagram } from './CourtDiagram';
 import { Loupe } from './Loupe';
 
 const TAGS: Tag[] = ['hand', 'racket', 'ground', 'net', 'other', 'boundary'];
+
+/** Move to the previous/next court pose, wrapping around. */
+function goPose(
+  sequence: { court: { keyframes: { t: number }[] } },
+  frame: number,
+  direction: number,
+): void {
+  const keys = [...sequence.court.keyframes].sort((a, b) => a.t - b.t);
+  if (keys.length === 0) return;
+  const current = keys.findIndex((k) => k.t === frame);
+  let next: number;
+  if (current >= 0) {
+    next = (current + direction + keys.length) % keys.length;
+  } else if (direction > 0) {
+    next = keys.findIndex((k) => k.t > frame);
+    if (next < 0) next = 0;
+  } else {
+    const before = keys.map((k) => k.t).filter((t) => t < frame);
+    next = before.length > 0 ? keys.findIndex((k) => k.t === before[before.length - 1]) : keys.length - 1;
+  }
+  const store = useStore.getState();
+  store.jumpFrame(keys[next]!.t);
+  store.select(null);
+}
 const NUDGE_STEPS = [0.1, 1, 5];
 
 function LabelInput({
@@ -96,6 +120,9 @@ export function SidePanel() {
     selection?.kind === 'point' && traj ? traj.points[selection.index] ?? null : null;
   const selectedLandmark = selection?.kind === 'landmark' ? selection.landmarkId : null;
   const impacts = traj ? traj.points.filter((p) => p.kind === 'anchor') : [];
+  const poseIndex = sequence
+    ? sequence.court.keyframes.findIndex((k) => k.t === frame)
+    : -1;
   const segments = Math.max(0, impacts.length - 1);
 
   const nudge = (signX: number, signY: number) => {
@@ -209,15 +236,61 @@ export function SidePanel() {
               </select>
             </div>
             <div className="kv">
-              <span className="subtle">Keyframes</span>
+              <span className="subtle">Poses court</span>
               <span className="mono">
                 {sequence.court.keyframes.length === 0
                   ? '—'
-                  : sequence.court.keyframes.length === 1
-                    ? 'statique'
-                    : `${sequence.court.keyframes.length} (caméra mobile)`}
+                  : `${sequence.court.keyframes.length}${sequence.court.keyframes.length > 1 ? ' (caméra mobile)' : ' (statique)'}`}
               </span>
             </div>
+            {sequence.court.keyframes.length > 0 && (
+              <div className="pose-nav">
+                <button
+                  className="btn tiny"
+                  onClick={() => goPose(sequence, frame, -1)}
+                  title="Pose précédente"
+                >
+                  ◀ pose
+                </button>
+                <span className="mono subtle">
+                  {poseIndex >= 0
+                    ? `pose ${poseIndex + 1}/${sequence.court.keyframes.length}`
+                    : `hors pose · ${sequence.court.keyframes.length} poses`}
+                </span>
+                <button
+                  className="btn tiny"
+                  onClick={() => goPose(sequence, frame, 1)}
+                  title="Pose suivante"
+                >
+                  pose ▶
+                </button>
+              </div>
+            )}
+            {keyframe && (
+              <ul className="landmark-list">
+                {Object.entries(keyframe.landmarks).map(([id, position]) => {
+                  const selected =
+                    selection?.kind === 'landmark' && selection.landmarkId === id;
+                  return (
+                    <li
+                      key={id}
+                      className={selected ? 'on' : ''}
+                      onClick={() => {
+                        store.select({ kind: 'landmark', landmarkId: id });
+                        store.jumpFrame(keyframe.t);
+                      }}
+                      title="Sélectionner ce point, puis glisser sur la vidéo ou utiliser la croix"
+                    >
+                      <span className="landmark-dot" />
+                      <span className="grow">{LANDMARK_LABELS[id] ?? id}</span>
+                      <span className="mono subtle">
+                        {position.x.toFixed(4)}, {position.y.toFixed(4)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
 
             <div className="row">
               <button className="btn small" onClick={() => store.startCourtWizard()}>

@@ -179,6 +179,31 @@ export function sampleKnots(knots: Knot[], t: number): Point {
   return hermite(pointOf(knots, lo), m0, pointOf(knots, hi), m1, u);
 }
 
+/**
+ * Straight-line interpolation between knots.
+ * Used for court poses: camera motion must not overshoot between two poses.
+ */
+export function sampleLinear(knots: Knot[], t: number): Point {
+  if (knots.length === 0) throw new Error('empty curve');
+  if (knots.length === 1) return pointOf(knots, 0);
+  if (t <= knots[0]![0]) return pointOf(knots, 0);
+  if (t >= knots[knots.length - 1]![0]) return pointOf(knots, knots.length - 1);
+
+  let lo = 0;
+  let hi = knots.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (knots[mid]![0] <= t) lo = mid;
+    else hi = mid;
+  }
+  const t0 = knots[lo]![0];
+  const t1 = knots[hi]![0];
+  const u = t1 === t0 ? 0 : (t - t0) / (t1 - t0);
+  const p0 = pointOf(knots, lo);
+  const p1 = pointOf(knots, hi);
+  return [p0[0] + (p1[0] - p0[0]) * u, p0[1] + (p1[1] - p0[1]) * u];
+}
+
 // --- homography -----------------------------------------------------------
 
 function solve(matrix: number[][], rhs: number[]): number[] | null {

@@ -9,6 +9,7 @@ import {
   isDegenerateQuad,
   precisionRatio,
   sampleKnots,
+  sampleLinear,
   type Knot,
   type Mat3,
   type Point,
@@ -29,7 +30,8 @@ export function landmarksAt(court: Court, frame: number): Record<string, Point> 
   const out: Record<string, Point> = {};
   for (const id of court.homographyLandmarks) {
     const knots = courtKnots(court, id);
-    if (knots.length) out[id] = sampleKnots(knots, frame);
+    // Court poses move linearly: no spline overshoot between two poses.
+    if (knots.length) out[id] = sampleLinear(knots, frame);
   }
   return out;
 }

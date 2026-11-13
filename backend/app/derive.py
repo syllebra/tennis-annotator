@@ -27,8 +27,9 @@ def landmarks_at(court: dict, frame: int) -> dict[str, Point]:
     out: dict[str, Point] = {}
     for lid in ids:
         knots = court_knots(court, lid)
+        # Court poses move linearly: no spline overshoot between two poses.
         if knots:
-            out[lid] = geometry.sample_knots(knots, float(frame))
+            out[lid] = geometry.sample_linear(knots, float(frame))
     return out
 
 

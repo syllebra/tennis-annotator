@@ -719,8 +719,8 @@ select {
 
 .tl-body {
   overflow-x: auto;
-  overflow-y: hidden;
-  height: 132px;
+  overflow-y: auto;
+  height: 168px;
 }
 
 .tl-inner {
@@ -778,14 +778,63 @@ select {
   position: relative;
 }
 
+.tl-line {
+  position: relative;
+  height: 18px;
+}
+
 .tl-row {
   position: absolute;
-  height: 16px;
-  margin-top: 3px;
+  top: 2px;
+  bottom: 2px;
   background: #14202c;
   border: 1px solid #21374a;
   border-radius: 3px;
   cursor: pointer;
+}
+
+.tl-court-label {
+  position: absolute;
+  right: 6px;
+  top: 3px;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  opacity: 0.85;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.tl-court-span {
+  position: absolute;
+  top: 8px;
+  height: 2px;
+  background: rgba(0, 220, 255, 0.35);
+  border-radius: 2px;
+}
+
+.tl-keyframe {
+  position: absolute;
+  top: 2px;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  background: #16324a;
+  transform: rotate(45deg);
+  cursor: pointer;
+  z-index: 2;
+}
+
+.tl-keyframe:hover {
+  background: #1f4a6b;
+}
+
+.tl-keyframe.on {
+  background: var(--accent);
+  box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.25);
 }
 
 .tl-row.active {
@@ -1260,4 +1309,57 @@ select {
   font-size: 10.5px;
   line-height: 1.35;
   color: var(--muted);
+}
+
+/* ---------- poses du court ---------- */
+
+.pose-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.pose-nav span {
+  flex: 1;
+  text-align: center;
+  font-size: 11px;
+}
+
+.landmark-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+
+.landmark-list li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 11.5px;
+}
+
+.landmark-list li:hover {
+  background: var(--bg-2);
+}
+
+.landmark-list li.on {
+  background: var(--bg-2);
+  outline: 1px solid var(--accent);
+}
+
+.landmark-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 220, 255, 0.9);
+  flex: none;
+}
+
+.landmark-list li.on .landmark-dot {
+  background: var(--accent);
+  border-color: var(--accent);
 }

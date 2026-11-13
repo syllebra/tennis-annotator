@@ -222,54 +222,88 @@ export function Timeline() {
           </div>
 
           <div className="tl-rows">
+            <div className="tl-line">
+              <span className="tl-court-label">court</span>
+              {sequence && sequence.court.keyframes.length > 1 && (
+                <div
+                  className="tl-court-span"
+                  style={{
+                    left: Math.min(...sequence.court.keyframes.map((k) => k.t)) * pxPerFrame,
+                    width:
+                      (Math.max(...sequence.court.keyframes.map((k) => k.t)) -
+                        Math.min(...sequence.court.keyframes.map((k) => k.t))) *
+                      pxPerFrame,
+                  }}
+                />
+              )}
+              {sequence?.court.keyframes.map((keyframe, index) => (
+                <button
+                  key={keyframe.t}
+                  className={
+                    Math.abs(keyframe.t - frame) < 0.5 ? 'tl-keyframe on' : 'tl-keyframe'
+                  }
+                  style={{ left: keyframe.t * pxPerFrame - 7 }}
+                  title={`Pose court ${index + 1}/${sequence.court.keyframes.length} · #${keyframe.t}`}
+                  onPointerDown={(event) => {
+                    event.stopPropagation();
+                    useStore.getState().jumpFrame(keyframe.t);
+                    useStore.getState().select(null);
+                  }}
+                />
+              ))}
+            </div>
+
             {sequence?.trajectories.map((traj) => (
-              <div
-                key={traj.id}
-                className={traj.id === activeTrajectoryId ? 'tl-row active' : 'tl-row'}
-                title={`${traj.label} — ${traj.points.filter((p) => p.kind === 'anchor').length} impact(s)`}
-                style={{
-                  left: traj.tStart * pxPerFrame,
-                  width: (traj.tEnd - traj.tStart + 1) * pxPerFrame,
-                }}
-                onPointerDown={(event) => {
-                  event.stopPropagation();
-                  useStore.getState().setActiveTrajectory(traj.id);
-                }}
-              >
-                {traj.occlusions.map((occ, i) => (
-                  <div
-                    key={i}
-                    className="tl-occ"
-                    style={{
-                      left: (occ.from - traj.tStart) * pxPerFrame,
-                      width: (occ.to - occ.from + 1) * pxPerFrame,
-                    }}
-                  />
-                ))}
-                {traj.points.map((point, index) => {
-                  const selected =
-                    selection?.kind === 'point' &&
-                    selection.trajectoryId === traj.id &&
-                    selection.index === index;
-                  return (
+              <div className="tl-line" key={traj.id}>
+                <div
+                  className={traj.id === activeTrajectoryId ? 'tl-row active' : 'tl-row'}
+                  title={`${traj.label} — ${traj.points.filter((p) => p.kind === 'anchor').length} impact(s)`}
+                  style={{
+                    left: traj.tStart * pxPerFrame,
+                    width: (traj.tEnd - traj.tStart + 1) * pxPerFrame,
+                  }}
+                  onPointerDown={(event) => {
+                    event.stopPropagation();
+                    useStore.getState().setActiveTrajectory(traj.id);
+                  }}
+                >
+                  {traj.occlusions.map((occ, i) => (
                     <div
-                      key={`${point.t}-${index}`}
-                      className={selected ? 'tl-point selected' : 'tl-point'}
-                      title={`#${point.t} ${point.kind}${point.tag ? ` ${point.tag}` : ''}`}
+                      key={i}
+                      className="tl-occ"
                       style={{
-                        left: (point.t - traj.tStart) * pxPerFrame - 2,
-                        background:
-                          point.kind === 'path' ? '#ffd166' : TAG_COLORS[point.tag ?? 'other'],
-                      }}
-                      onPointerDown={(event) => {
-                        event.stopPropagation();
-                        useStore.getState().setActiveTrajectory(traj.id);
-                        useStore.getState().syncFrame(point.t);
-                        useStore.getState().select({ kind: 'point', trajectoryId: traj.id, index });
+                        left: (occ.from - traj.tStart) * pxPerFrame,
+                        width: (occ.to - occ.from + 1) * pxPerFrame,
                       }}
                     />
-                  );
-                })}
+                  ))}
+                  {traj.points.map((point, index) => {
+                    const selected =
+                      selection?.kind === 'point' &&
+                      selection.trajectoryId === traj.id &&
+                      selection.index === index;
+                    return (
+                      <div
+                        key={`${point.t}-${index}`}
+                        className={selected ? 'tl-point selected' : 'tl-point'}
+                        title={`#${point.t} ${point.kind}${point.tag ? ` ${point.tag}` : ''}`}
+                        style={{
+                          left: (point.t - traj.tStart) * pxPerFrame - 2,
+                          background:
+                            point.kind === 'path' ? '#ffd166' : TAG_COLORS[point.tag ?? 'other'],
+                        }}
+                        onPointerDown={(event) => {
+                          event.stopPropagation();
+                          useStore.getState().setActiveTrajectory(traj.id);
+                          useStore.getState().syncFrame(point.t);
+                          useStore
+                            .getState()
+                            .select({ kind: 'point', trajectoryId: traj.id, index });
+                        }}
+                      />
+                    );
+                  })}
+                </div>
               </div>
             ))}
           </div>

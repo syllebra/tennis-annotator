@@ -10,7 +10,7 @@ Vocabulaire du domaine. Aucun détail d'implémentation ici.
 | **Court** | le terrain de tennis, dont la position dans l'image est décrite par des landmarks. |
 | **Landmark** | un point du court identifié dans un catalogue (coin, intersection de lignes, poteau…), dont la position physique est connue en mètres. |
 | **Repère court** | repère physique en mètres : origine au centre du filet au sol, axe Y vers la ligne de fond lointaine, axe Z vertical. |
-| **Keyframe court** | un placement groupé de landmarks à une frame donnée. Une seule keyframe décrit un court statique ; plusieurs décrivent une caméra mobile. |
+| **Pose court** (syn. *keyframe court*) | un placement groupé des 4 landmarks à une frame donnée. Une seule pose décrit un court statique ; plusieurs décrivent une caméra mobile. Entre deux poses, chaque landmark se déplace **linéairement** (pas de spline : pas de dépassement). |
 | **Précision du repérage** | part du court couverte par le quadrilatère réellement annoté ; sous un seuil, les lignes déduites sont des extrapolations peu fiables. |
 | **Échange** (syn. *trajet*) | **un point joué** : l'ensemble du parcours de la balle pour un point du match (service, échanges de fond, jusqu'au point marqué). Décrit par une seule courbe, découpée en **segments** par les impacts. |
 | **Segment** | la portion de courbe entre deux impacts consécutifs d'un échange. Un échange compte donc *n impacts − 1* segments. |

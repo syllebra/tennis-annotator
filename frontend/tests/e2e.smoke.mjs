@@ -136,6 +136,33 @@ await page.click('.ballcam-head button');
 if (await page.locator('.ballcam').count()) throw new Error('ball-cam did not close');
 step('verification ball-cam works');
 
+// --- court poses in the timeline + per-point editing -----------------------
+if (!(await page.locator('.tl-keyframe').count())) throw new Error('court pose not shown in timeline');
+for (let i = 0; i < 10; i++) await click('.transport button:has-text("+1")');
+await click('.side button:has-text("Poser le court")');
+for (const [cx, cy] of corners) {
+  const px = box.x + box.width * cx;
+  const py = box.y + box.height * cy;
+  await page.mouse.move(px, py);
+  await page.mouse.down();
+  await page.waitForTimeout(120);
+  await page.mouse.up();
+  await page.waitForTimeout(120);
+}
+await page.waitForTimeout(400);
+const poses = await page.locator('.tl-keyframe').count();
+if (poses !== 2) throw new Error(`expected 2 court poses, got ${poses}`);
+await page.locator('.tl-keyframe').nth(0).click();
+await page.waitForTimeout(300);
+const poseFrame = await page.textContent('.tl-frame input');
+if (!(await page.locator('.landmark-list li').count())) throw new Error('landmark list missing');
+await page.locator('.landmark-list li').nth(2).click();
+await page.waitForTimeout(200);
+if ((await page.locator('.landmark-list li.on').count()) !== 1) {
+  throw new Error('landmark not selectable individually');
+}
+step('court poses and per-point editing');
+
 // --- zoom controls ---------------------------------------------------------
 const zoomBefore = await text('.zoom-value');
 await page.click('.zoom-group button:has-text("+")');

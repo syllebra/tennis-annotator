@@ -46,6 +46,24 @@ def curve_cases() -> list[dict]:
     return cases
 
 
+def linear_cases() -> list[dict]:
+    knot_sets = [
+        [(0, 0.10, 0.90, "path"), (20, 0.50, 0.40, "path")],
+        [(0, 0.20, 0.80, "path"), (10, 0.40, 0.60, "path"), (25, 0.90, 0.30, "path")],
+        [(5, 0.30, 0.30, "path")],
+    ]
+    cases = []
+    for knots in knot_sets:
+        first, last = knots[0][0], knots[-1][0]
+        samples = []
+        frame = float(first)
+        while frame <= last + 1e-9:
+            samples.append([frame, *geometry.sample_linear(knots, frame)])
+            frame += 2.5
+        cases.append({"knots": [list(k) for k in knots], "samples": samples})
+    return cases
+
+
 def homography_cases() -> list[dict]:
     image_quads = [
         [(0.20, 0.90), (0.80, 0.90), (0.65, 0.25), (0.35, 0.25)],
@@ -103,6 +121,7 @@ def main() -> None:
         "presets": geometry.PRESETS,
         "court_lines": [[list(p) for p in line] for line in geometry.COURT_LINES],
         "curves": curve_cases(),
+        "linear": linear_cases(),
         "homographies": homography_cases(),
         "precision": precision_cases(),
     }

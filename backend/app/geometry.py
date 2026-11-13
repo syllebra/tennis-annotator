@@ -204,6 +204,30 @@ def sample_knots_range(knots: Sequence[Knot], frames: Iterable[int]) -> list[Poi
     return [sample_knots(knots, float(f)) for f in frames]
 
 
+def sample_linear(knots: Sequence[Knot], t: float) -> Point:
+    """Straight-line interpolation between knots (court poses)."""
+    if not knots:
+        raise ValueError("cannot sample an empty curve")
+    if len(knots) == 1:
+        return (knots[0][1], knots[0][2])
+    if t <= knots[0][0]:
+        return (knots[0][1], knots[0][2])
+    if t >= knots[-1][0]:
+        return (knots[-1][1], knots[-1][2])
+
+    lo, hi = 0, len(knots) - 1
+    while hi - lo > 1:
+        mid = (lo + hi) // 2
+        if knots[mid][0] <= t:
+            lo = mid
+        else:
+            hi = mid
+    t0, x0, y0, _ = knots[lo]
+    t1, x1, y1, _ = knots[hi]
+    u = 0.0 if t1 == t0 else (t - t0) / float(t1 - t0)
+    return (x0 + (x1 - x0) * u, y0 + (y1 - y0) * u)
+
+
 # --- homography -----------------------------------------------------------
 
 

@@ -8,6 +8,7 @@ import {
   homography,
   precisionRatio,
   sampleKnots,
+  sampleLinear,
   type Knot,
   type Point,
 } from '../src/math';
@@ -20,6 +21,7 @@ const data = fixtures as unknown as {
   presets: Record<string, string[]>;
   court_lines: [number, number][][];
   curves: { knots: [number, number, number, string][]; samples: [number, number, number][] }[];
+  linear: { knots: [number, number, number, string][]; samples: [number, number, number][] }[];
   homographies: {
     image: [number, number][];
     court: [number, number][];
@@ -48,6 +50,17 @@ describe('spline parity', () => {
     const knots = curve.knots as unknown as Knot[];
     for (const [frame, x, y] of curve.samples) {
       const [sx, sy] = sampleKnots(knots, frame);
+      expect(sx).toBeCloseTo(x, 12);
+      expect(sy).toBeCloseTo(y, 12);
+    }
+  });
+});
+
+describe('court linear interpolation parity', () => {
+  it.each(data.linear.map((c, i) => [i, c] as const))('case %i', (_index, item) => {
+    const knots = item.knots as unknown as Knot[];
+    for (const [frame, x, y] of item.samples) {
+      const [sx, sy] = sampleLinear(knots, frame);
       expect(sx).toBeCloseTo(x, 12);
       expect(sy).toBeCloseTo(y, 12);
     }
