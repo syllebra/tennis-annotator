@@ -67,6 +67,13 @@ def test_api_requires_auth() -> None:
     assert client.get("/api/auth/status").json()["authenticated"] is False
 
 
+def test_health_is_public() -> None:
+    client = TestClient(app)
+    response = client.get("/api/health")
+    assert response.status_code == 200
+    assert response.json() == {"ok": True, "app": "tennis-annotator"}
+
+
 def test_login_sets_cookie_and_unlocks_api() -> None:
     client = TestClient(app)
     response = client.post("/api/auth/login", json={"token": "test-token"})

@@ -37,7 +37,9 @@ from .schema import Document
 
 app = FastAPI(title="Tennis Annotator", version="0.1.0")
 
-PUBLIC_API = {"/api/auth/status", "/api/auth/login", "/api/auth/logout"}
+# Liveness probe stays public: the launcher uses it to decide whether an
+# instance is already running, and it exposes no annotation data.
+PUBLIC_API = {"/api/health", "/api/auth/status", "/api/auth/login", "/api/auth/logout"}
 
 
 @app.middleware("http")
@@ -591,7 +593,7 @@ def schema() -> dict:
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True, "app": "tennis-annotator", "cache": str(CACHE_DIR)}
+    return {"ok": True, "app": "tennis-annotator"}
 
 
 if _DIST.is_dir():
