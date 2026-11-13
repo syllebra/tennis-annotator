@@ -4,6 +4,7 @@ import { courtLandmarksOf, drawOverlay, hitTest, type StageView } from '../rende
 import { hoverState, useStore } from '../store';
 import type { Point } from '../math';
 import { LANDMARK_LABELS } from '../math';
+import { BallCam } from './BallCam';
 
 const imageCache = new Map<string, { img: HTMLImageElement; ready: boolean }>();
 
@@ -73,6 +74,7 @@ export function VideoStage() {
   const activeTrajectoryId = useStore((s) => s.activeTrajectoryId);
   const occlusionStart = useStore((s) => s.occlusionStart);
   const tool = useStore((s) => s.tool);
+  const verify = useStore((s) => s.verify);
 
   const view: StageView | null = (() => {
     if (!doc) return null;
@@ -86,6 +88,7 @@ export function VideoStage() {
       wizard,
       activeTrajectoryId,
       occlusionStart,
+      verify,
     };
   })();
   viewRef.current = view;
@@ -444,6 +447,7 @@ export function VideoStage() {
             </button>
           </div>
         )}
+        {verify && <BallCam />}
         {(tool === 'anchor' || tool === 'path') && (
           <div className="stage-hint armed">
             Clique la balle pour poser {tool === 'anchor' ? 'une ancre' : 'un point de passage'}

@@ -71,6 +71,7 @@ interface AppState {
   verify: boolean;
   loupeZoom: number;
   loupeFocused: boolean;
+  verifyZoom: number;
 
   init: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -91,6 +92,7 @@ interface AppState {
   toggleVerify: () => void;
   setLoupeZoom: (zoom: number) => void;
   setLoupeFocused: (focused: boolean) => void;
+  setVerifyZoom: (zoom: number) => void;
 
   setIn: () => void;
   setOut: () => void;
@@ -278,6 +280,7 @@ export const useStore = create<AppState>((set, get) => {
     verify: false,
     loupeZoom: 10,
     loupeFocused: false,
+    verifyZoom: 5,
 
     notify: (message) => set({ toast: message }),
 
@@ -439,6 +442,7 @@ export const useStore = create<AppState>((set, get) => {
     toggleVerify: () => set({ verify: !get().verify, playing: false }),
     setLoupeZoom: (zoom) => set({ loupeZoom: Math.min(24, Math.max(4, zoom)) }),
     setLoupeFocused: (focused) => set({ loupeFocused: focused }),
+    setVerifyZoom: (zoom) => set({ verifyZoom: Math.min(12, Math.max(2, zoom)) }),
 
     setIn: () => {
       frameNow();

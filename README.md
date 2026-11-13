@@ -110,6 +110,12 @@ horizontalement, boutons `−` / `+`, **tout** et **séquence** pour recadrer. L
 précédents et suivants sont atténués, le reste de l'échange (courbe **et** points) est masqué. On
 garde ainsi le contexte immédiat sans être tiré par la fin du point.
 
+**Relecture de vérification** : le bouton **vérif.** (ou `V`) ouvre une **ball-cam** — un grossissement
+centré sur la position annotée, qui suit la balle pendant la lecture. La croix marque ce que dit
+l'annotation : si la balle s'en écarte, la courbe dérive. Boutons `◀` / `▶` pour avancer frame par
+frame, lecture pour rejouer l'échange en boucle, `−` / `+` pour le grossissement. Un badge signale
+une balle annotée hors cadre.
+
 **Précision** : le geste est identique pour un point de balle et pour un coin du court. Pendant le
 geste, la loupe en place est ancrée sur le point et la croix suit le déplacement amplifié ×10 ; on
 peut aussi cliquer dans la loupe du panneau droit et utiliser la croix directionnelle (pas

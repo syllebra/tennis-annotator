@@ -12,6 +12,7 @@ export interface StageView {
   wizard: WizardState | null;
   activeTrajectoryId: string | null;
   occlusionStart: number | null;
+  verify: boolean;
 }
 
 export const TAG_COLORS: Record<Tag, string> = {
@@ -270,6 +271,27 @@ export function drawOverlay(
           ctx.arc(x, y, POINT_RADIUS + 5, 0, Math.PI * 2);
           ctx.stroke();
         }
+        ctx.restore();
+      }
+    }
+
+    if (view.verify && view.sequence) {
+      const active = view.sequence.trajectories.find((t) => t.id === view.activeTrajectoryId);
+      const position = active ? trajectoryPoint(active, view.frame) : null;
+      if (position) {
+        const [x, y] = toPx(position);
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, y, 16, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x - 24, y);
+        ctx.lineTo(x + 24, y);
+        ctx.moveTo(x, y - 24);
+        ctx.lineTo(x, y + 24);
+        ctx.stroke();
         ctx.restore();
       }
     }

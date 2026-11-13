@@ -117,6 +117,25 @@ if (!panel.includes('1 segment(s)')) throw new Error('expected 1 segment');
 if (!panel.includes('#10')) throw new Error('impact chip missing');
 step('échange annotated with buttons');
 
+// --- verification ball-cam -------------------------------------------------
+await click('.topbar button:has-text("vérif.")');
+await page.waitForTimeout(600);
+if (!(await page.locator('.ballcam').count())) throw new Error('ball-cam missing');
+const crossLeft = parseFloat(
+  (await page.getAttribute('.ballcam-cross-v', 'style'))?.match(/left:\s*([\d.]+)/)?.[1] ?? '0',
+);
+if (crossLeft < 130 || crossLeft > 170) {
+  throw new Error(`crosshair not centred on the annotated point: ${crossLeft}`);
+}
+const srcBefore = await page.getAttribute('.ballcam-box img', 'src');
+await page.click('.ballcam-controls button:nth-child(3)');
+await page.waitForTimeout(500);
+const srcAfter = await page.getAttribute('.ballcam-box img', 'src');
+if (srcBefore === srcAfter) throw new Error('ball-cam did not follow the frame step');
+await page.click('.ballcam-head button');
+if (await page.locator('.ballcam').count()) throw new Error('ball-cam did not close');
+step('verification ball-cam works');
+
 // --- zoom controls ---------------------------------------------------------
 const zoomBefore = await text('.zoom-value');
 await page.click('.zoom-group button:has-text("+")');
