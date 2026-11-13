@@ -172,3 +172,7 @@ Voir `docs/export-scripts.md` pour écrire les conversions TrackNet / RT-DETR.
   verrouillées par `tests/fixtures/conformance.json` (Python génère, vitest vérifie).
 
 Détails : `docs/adr/`. Glossaire : `CONTEXT.md`. Schéma : `docs/annotations.schema.json`.
+
+## Licence
+
+MIT — voir [LICENSE](LICENSE).
