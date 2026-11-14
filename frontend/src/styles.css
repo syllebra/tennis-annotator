@@ -25,6 +25,7 @@ body,
   height: 100%;
   background: var(--bg);
   color: var(--text);
+  overflow: hidden;
 }
 
 button,
@@ -277,7 +278,11 @@ kbd {
 .annotator {
   height: 100%;
   display: grid;
+  /* explicit minmax(0, 1fr): a wide timeline must scroll inside itself, it
+     must never widen the page (which used to stretch the video canvas) */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  overflow: hidden;
 }
 
 .topbar {
@@ -351,6 +356,7 @@ kbd {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 352px;
   min-height: 0;
+  min-width: 0;
 }
 
 .stage-column {
@@ -366,16 +372,16 @@ kbd {
   padding: 10px;
   min-height: 0;
   min-width: 0;
+  overflow: hidden;
 }
 
 .stage-frame {
   position: relative;
-  max-width: 100%;
-  max-height: 100%;
-  width: 100%;
   background: #000;
-  border: 1px solid var(--border);
   border-radius: 8px;
+  /* outline instead of border: a border would shrink the content box by 2px
+     and skew the exact width/height set from the video aspect ratio */
+  box-shadow: 0 0 0 1px var(--border);
   overflow: hidden;
 }
 
@@ -679,6 +685,8 @@ select {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .tl-toolbar {
@@ -721,6 +729,7 @@ select {
   overflow-x: auto;
   overflow-y: auto;
   height: 168px;
+  min-width: 0;
 }
 
 .tl-inner {

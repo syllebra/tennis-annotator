@@ -58,6 +58,7 @@ export function VideoStage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const [frameBox, setFrameBox] = useState({ width: 0, height: 0 });
   const drawRef = useRef<() => void>(() => undefined);
   const viewRef = useRef<StageView | null>(null);
   const fineRef = useRef<FineDrag | null>(null);
@@ -162,18 +163,38 @@ export function VideoStage() {
 
   drawRef.current = draw;
 
+  // Fit the video inside the stage ourselves: CSS width:100% + aspect-ratio
+  // + max-height stretches the box (and the canvas) when the window is short.
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const observer = new ResizeObserver(() => {
-      const wrapper = wrapperRef.current;
-      if (!wrapper) return;
-      const rect = wrapper.getBoundingClientRect();
-      setSize({ width: rect.width, height: rect.height });
-    });
+    const compute = () => {
+      const rect = container.getBoundingClientRect();
+      const availableWidth = Math.max(16, rect.width - 20);
+      const availableHeight = Math.max(16, rect.height - 20);
+      const table = useStore.getState().meta?.table;
+      const aspect = table && table.height > 0 ? table.width / table.height : 16 / 9;
+      // width-first, then fall back to height-first: only one dimension is
+      // rounded, so the on-screen ratio stays within half a pixel of the video
+      let width = Math.floor(availableWidth);
+      let height = Math.round(width / aspect);
+      if (height > availableHeight) {
+        height = Math.floor(availableHeight);
+        width = Math.round(height * aspect);
+      }
+      const next = { width, height };
+      setFrameBox((current) =>
+        Math.abs(current.width - next.width) < 0.5 && Math.abs(current.height - next.height) < 0.5
+          ? current
+          : next,
+      );
+      setSize(next);
+    };
+    compute();
+    const observer = new ResizeObserver(compute);
     observer.observe(container);
     return () => observer.disconnect();
-  }, []);
+  }, [meta]);
 
   useEffect(() => {
     draw();
@@ -401,11 +422,14 @@ export function VideoStage() {
   };
 
   const landmarks = view ? Object.keys(courtLandmarksOf(view)) : [];
-  const aspect = meta ? meta.table.width / meta.table.height : 16 / 9;
 
   return (
     <div className="stage" ref={containerRef}>
-      <div className="stage-frame" ref={wrapperRef} style={{ aspectRatio: `${aspect}` }}>
+      <div
+        className="stage-frame"
+        ref={wrapperRef}
+        style={{ width: frameBox.width || undefined, height: frameBox.height || undefined }}
+      >
         <video
           ref={videoRef}
           className="stage-video"
