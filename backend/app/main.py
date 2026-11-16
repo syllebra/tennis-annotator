@@ -439,9 +439,10 @@ def auto_court(vid: str, payload: AutoCourtPayload) -> dict:
     height = int(reply.get("height") or cached.table.height)
     keypoints = reply.get("keypoints") or []
     try:
-        corners = court_detector.landmarks_from_keypoints(keypoints, width, height)
-        landmarks = court_detector.all_landmarks(keypoints, width, height) or corners
-        quality = court_detector.quality(corners, keypoints, width, height)
+        # Only the 4 outer doubles corners are kept; the other 10 keypoints are
+        # used to score the fit and then discarded.
+        landmarks = court_detector.landmarks_from_keypoints(keypoints, width, height)
+        quality = court_detector.quality(landmarks, keypoints, width, height)
     except (ValueError, np.linalg.LinAlgError) as exc:
         raise HTTPException(422, f"court inutilisable : {exc}") from exc
     return {

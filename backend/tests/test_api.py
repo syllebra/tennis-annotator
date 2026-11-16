@@ -77,3 +77,37 @@ def test_schema_endpoint(client) -> None:
 
 def test_health(client) -> None:
     assert client.get("/api/health").json()["ok"] is True
+
+
+@requires_ffmpeg
+def test_auto_court_keeps_only_the_four_outer_corners(
+    client, test_video, tmp_path, monkeypatch
+) -> None:
+    path, _, _, _ = test_video
+    root = tmp_path / "videos_auto"
+    root.mkdir()
+    shutil.copy(path, root / "clip.mp4")
+    client.put("/api/config", json={"videoRoot": str(root)})
+    vid = client.get("/api/videos").json()["videos"][0]["id"]
+
+    import app.main as main_module
+
+    monkeypatch.setattr(main_module, "_configure_detectors", lambda refresh=False: {})
+
+    # the 14 keypoints of the real tennis sample, scaled to the 160x120 fixture
+    raw = [
+        648, 229, 1288, 230, 330, 740, 1588, 741, 729, 229, 488, 740, 1208, 230,
+        1430, 741, 696, 297, 1238, 297, 578, 550, 1347, 550, 967, 297, 962, 550,
+    ]
+    pairs = [[raw[i] * 160 / 1920, raw[i + 1] * 120 / 1080] for i in range(0, 28, 2)]
+
+    class FakeClient:
+        def request(self, payload, timeout=0):
+            return {"ok": True, "width": 160, "height": 120, "keypoints": pairs}
+
+    monkeypatch.setattr(main_module, "detector_client", FakeClient())
+    response = client.post(f"/api/videos/{vid}/auto/court", json={"frame": 0})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert sorted(body["landmarks"]) == ["far_left", "far_right", "near_left", "near_right"]
+    assert body["quality"]["points"] == 10

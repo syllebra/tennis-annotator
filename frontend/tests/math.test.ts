@@ -12,7 +12,7 @@ import {
   type Knot,
   type Point,
 } from '../src/math';
-import { courtKnots, homographyAt, trajectoryPoint } from '../src/derive';
+import { courtKnots, homographyAt, projectCourtPoint, trajectoryPoint } from '../src/derive';
 import { segmentView } from '../src/render';
 import type { Court, Trajectory } from '../src/types';
 
@@ -160,6 +160,33 @@ describe('segment fade around the current frame', () => {
     expect(view.count).toBe(0);
     expect(view.opacity(0)).toBe(1);
     expect(view.pointVisible(99)).toBe(true);
+  });
+});
+
+describe('court pose migration to the doubles preset', () => {
+  it('projects the 4 doubles corners from a singles-only pose', () => {
+    const singlesIds = PRESETS.singles_corners!;
+    const doublesIds = PRESETS.doubles_corners!;
+    const imageQuad: Point[] = [
+      [0.2, 0.9],
+      [0.8, 0.9],
+      [0.65, 0.25],
+      [0.35, 0.25],
+    ];
+    const H = homography(doublesIds.map((id) => LANDMARKS[id]!), imageQuad);
+    const singlesLandmarks: Record<string, Point> = {};
+    for (const id of singlesIds) singlesLandmarks[id] = applyH(H, LANDMARKS[id]!);
+    for (const id of doublesIds) {
+      const expected = applyH(H, LANDMARKS[id]!);
+      const derived = projectCourtPoint(singlesLandmarks, singlesIds, LANDMARKS[id]!);
+      expect(derived).not.toBeNull();
+      expect(derived![0]).toBeCloseTo(expected[0], 9);
+      expect(derived![1]).toBeCloseTo(expected[1], 9);
+    }
+  });
+
+  it('returns null when the pose cannot define a homography', () => {
+    expect(projectCourtPoint({ near_left: [0.2, 0.9], near_right: [0.8, 0.9] }, ['near_left', 'near_right'], [0, 0])).toBeNull();
   });
 });
 

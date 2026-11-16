@@ -217,7 +217,10 @@ export function Annotator() {
 
   return (
     <div className="annotator">
-      <header className="topbar">
+      {/* one stable grid child: conditional banners used to shift every row,
+          so the workspace landed in an auto row and followed its content */}
+      <div className="chrome">
+        <header className="topbar">
         <button className="btn ghost" onClick={() => useStore.getState().closeVideo()}>
           ← vidéos
         </button>
@@ -286,15 +289,15 @@ export function Annotator() {
         >
           ↷
         </button>
-        <button
-          className={doc.state.completed ? 'btn small on' : 'btn small ghost'}
-          onClick={() => useStore.getState().toggleCompleted()}
-        >
-          {doc.state.completed ? 'terminée' : 'marquer terminée'}
-        </button>
-      </header>
+          <button
+            className={doc.state.completed ? 'btn small on' : 'btn small ghost'}
+            onClick={() => useStore.getState().toggleCompleted()}
+          >
+            {doc.state.completed ? 'terminée' : 'marquer terminée'}
+          </button>
+        </header>
 
-      {mismatch && (
+        {mismatch && (
         <div className="banner warn">
           La vidéo a changé depuis l'annotation ({mismatch.reasons.join(', ')}).
           {mismatch.blocking
@@ -315,16 +318,17 @@ export function Annotator() {
           </button>
         </div>
       )}
-      {toast && (
-        <div className="banner info">
-          {toast}
-          <button className="link" onClick={() => useStore.getState().notify(null)}>
-            ok
-          </button>
-        </div>
-      )}
-      {busy && <div className="banner">{busy}</div>}
-      {detectorBusy && <div className="banner info">{detectorBusy}</div>}
+        {toast && (
+          <div className="banner info">
+            {toast}
+            <button className="link" onClick={() => useStore.getState().notify(null)}>
+              ok
+            </button>
+          </div>
+        )}
+        {busy && <div className="banner">{busy}</div>}
+        {detectorBusy && <div className="banner info">{detectorBusy}</div>}
+      </div>
 
       <div className="workspace">
         <div className="stage-column">

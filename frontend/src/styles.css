@@ -278,11 +278,18 @@ kbd {
 .annotator {
   height: 100%;
   display: grid;
-  /* explicit minmax(0, 1fr): a wide timeline must scroll inside itself, it
-     must never widen the page (which used to stretch the video canvas) */
+  /* exactly three in-flow children: chrome (header + banners), workspace,
+     timeline. Conditional banners used to shift every row, which made the
+     workspace content-sized (and resized the video between actions). */
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
+}
+
+.chrome {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .topbar {

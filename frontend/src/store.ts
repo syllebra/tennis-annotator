@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { api } from './api';
-import { PRESETS } from './math';
+import { projectCourtPoint } from './derive';
+import { LANDMARKS, PRESETS, type Point } from './math';
 import type {
   DetectorSettings,
   DetectorStatus,
@@ -531,6 +532,32 @@ export const useStore = create<AppState>((set, get) => {
         return;
       }
       const frame = state.currentFrame;
+      const doublesIds = PRESETS.doubles_corners!;
+      const currentIds = sequence.court.homographyLandmarks;
+      const migrated: Record<number, Record<string, { x: number; y: number }>> = {};
+      for (const keyframe of sequence.court.keyframes) {
+        if (keyframe.t === frame) continue;
+        const missing = doublesIds.filter((id) => !keyframe.landmarks[id]);
+        if (missing.length === 0) continue;
+        const landmarks: Record<string, Point> = {};
+        for (const [id, position] of Object.entries(keyframe.landmarks)) {
+          landmarks[id] = [position.x, position.y];
+        }
+        for (const id of missing) {
+          const projected = projectCourtPoint(landmarks, currentIds, LANDMARKS[id]!);
+          if (!projected || !Number.isFinite(projected[0]) || !Number.isFinite(projected[1])) {
+            set({
+              toast:
+                'Impossible de convertir les poses existantes vers les coins double : ajuste-les ou supprime-les avant de détecter.',
+            });
+            return;
+          }
+          migrated[keyframe.t] = {
+            ...(migrated[keyframe.t] ?? {}),
+            [id]: { x: projected[0], y: projected[1] },
+          };
+        }
+      }
       set({
         detectorBusy: 'Détection du court…',
         toast: null,
@@ -541,6 +568,13 @@ export const useStore = create<AppState>((set, get) => {
         const result = await api.autoCourt(state.activeId, frame);
         commit((doc) => {
           const target = doc.sequences.find((s) => s.id === sequence.id)!;
+          // Existing poses keep their geometry: the 4 doubles corners are the
+          // exact projection of each pose's own homography.
+          for (const keyframe of target.court.keyframes) {
+            Object.assign(keyframe.landmarks, migrated[keyframe.t] ?? {});
+          }
+          target.court.preset = 'doubles_corners';
+          target.court.homographyLandmarks = [...doublesIds];
           target.court.keyframes = target.court.keyframes.filter((k) => k.t !== frame);
           target.court.keyframes.push({
             t: frame,
@@ -1122,7 +1156,9 @@ export const useStore = create<AppState>((set, get) => {
           target.y = point.y;
         }
       } else {
-        const seq = activeSequenceOf(state);
+        // mutate the *clone*: looking the sequence up in `state.doc` used to
+        // edit the previous document, so landmark drags were silently lost
+        const seq = activeSequenceOf({ doc: next, currentFrame: state.currentFrame });
         const kf = seq?.court.keyframes.find((k) => k.t === state.currentFrame);
         if (seq && kf) kf.landmarks[sel.landmarkId] = { x: point.x, y: point.y };
         else return;

@@ -154,15 +154,19 @@ Si le dépôt `../live-tennis-analyzer` est présent (ou le chemin renseigné da
 **Bibliothèque → Détecteurs**), deux raccourcis apparaissent :
 
 - **Détecter le court** (panneau Séquence, et dans l'assistant) : appelle le détecteur de keypoints
-  sur la frame courante, crée une pose avec les 14 landmarks (les 4 coins servent à l'homographie,
-  les autres au contrôle) et affiche l'écart moyen. Au-delà de 25 px, un avertissement demande de
-  vérifier.
+  sur la frame courante et crée une pose avec **uniquement les 4 coins extérieurs du double**. Les
+  10 autres keypoints du modèle servent à calculer l'écart moyen affiché, puis sont jetés. Le preset
+  passe à « coins double » ; les poses existantes sont conservées et complétées par les 4 coins
+  double, projetés depuis leur propre homographie (géométrie inchangée, vérifié à 0,0000 px).
 - **try auto** (panneau Échanges, actif quand le playhead est entre deux impacts) : détecte la balle
   frame par frame sur le segment, écarte les faux positifs par RANSAC, puis n'ajoute que les points
   de passage nécessaires pour rester sous la tolérance (2 px, 8 points max par défaut). Le bandeau
   indique points ajoutés, erreur max, frames retenues/rejetées, et signale les détections éparses ou
   une trajectoire quasi immobile. Les points créés portent `source: auto` (halo pointillé) et tout
   est annulable d'un `Ctrl+Z`.
+
+Chaque point affiché — y compris ceux créés par les détecteurs (`source: auto`, halo pointillé) —
+se manipule avec le même geste : appui → loupe en place ×10 → glisser → relâcher.
 
 Les modèles tournent dans le dépôt voisin, jamais importés ici : un **worker persistant** est lancé
 au premier usage (~35 s à froid, quelques ms ensuite), arrêté après 15 min d'inactivité.

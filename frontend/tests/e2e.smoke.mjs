@@ -87,6 +87,24 @@ await page.waitForTimeout(400);
 if (!(await text('.side')).includes('statique')) throw new Error('court keyframe not created');
 step('court placed with labelled wizard');
 
+// dragging a detected/placed corner must open the magnifier *and* apply
+await page.fill('.tl-frame input', '0');
+await page.waitForTimeout(600);
+const cornerBefore = await page.locator('.landmark-list li').first().innerText();
+const cornerX = box.x + box.width * 0.2;
+const cornerY = box.y + box.height * 0.85;
+await page.mouse.move(cornerX, cornerY);
+await page.mouse.down();
+await page.waitForTimeout(300);
+if (!(await page.locator('.glass').count())) throw new Error('magnifier missing on court corner');
+await page.mouse.move(cornerX + 45, cornerY - 12, { steps: 5 });
+await page.waitForTimeout(150);
+await page.mouse.up();
+await page.waitForTimeout(400);
+const cornerAfter = await page.locator('.landmark-list li').first().innerText();
+if (cornerBefore === cornerAfter) throw new Error('court corner drag was not applied');
+step('court corner drag applies');
+
 // --- échange with two segments --------------------------------------------
 await click('.side button:has-text("nouvel échange")');
 await page.waitForTimeout(300);

@@ -48,22 +48,6 @@ def landmarks_from_keypoints(
     return landmarks
 
 
-ALL_KEYPOINTS: dict[int, str] = {**CORNERS, **EXTRA}
-
-
-def all_landmarks(
-    keypoints: list[list[float]], width: int, height: int
-) -> dict[str, tuple[float, float]]:
-    """Every usable landmark, so any preset (doubles/singles/service) stays valid."""
-    out: dict[str, tuple[float, float]] = {}
-    for index, landmark_id in ALL_KEYPOINTS.items():
-        if index >= len(keypoints):
-            continue
-        x, y = keypoints[index][:2]
-        out[landmark_id] = (x / width, y / height)
-    return out
-
-
 def quality(
     landmarks: dict[str, tuple[float, float]],
     keypoints: list[list[float]],

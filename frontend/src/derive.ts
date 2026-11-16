@@ -45,6 +45,20 @@ export function homographyAt(court: Court, frame: number): Mat3 | null {
   return imageHomography(lm, court.homographyLandmarks);
 }
 
+/** Project a court-space point (metres) into image ratios using a keyframe's homography. */
+export function projectCourtPoint(
+  landmarks: Record<string, Point>,
+  ids: string[],
+  courtPoint: Point,
+): Point | null {
+  try {
+    const matrix = imageHomography(landmarks, ids);
+    return applyH(invert3(matrix), courtPoint);
+  } catch {
+    return null;
+  }
+}
+
 export function courtLinesAt(court: Court, frame: number): Point[][] | null {
   const H = homographyAt(court, frame);
   if (!H) return null;
