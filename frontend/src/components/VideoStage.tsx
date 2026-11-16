@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
-import { courtLandmarksOf, drawOverlay, hitTest, type StageView } from '../render';
+import { drawOverlay, hitTest, type StageView } from '../render';
 import { hoverState, useStore } from '../store';
 import type { Point } from '../math';
 import { LANDMARK_LABELS } from '../math';
@@ -421,7 +421,6 @@ export function VideoStage() {
     stopFineDrag();
   };
 
-  const landmarks = view ? Object.keys(courtLandmarksOf(view)) : [];
 
   return (
     <div className="stage" ref={containerRef}>
@@ -480,7 +479,7 @@ export function VideoStage() {
             </button>
           </div>
         )}
-        {landmarks.length === 0 && view?.sequence && showCourt && (
+        {view?.sequence && view.sequence.court.keyframes.length === 0 && showCourt && (
           <div className="stage-hint subtle">C pour poser les 4 coins du court</div>
         )}
         {glass && activeId && meta && (

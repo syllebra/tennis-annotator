@@ -351,6 +351,12 @@ export function SidePanel() {
                 Le quadrilatère annoté couvre peu du court : les lignes déduites sont extrapolées.
               </p>
             )}
+            {!keyframe && sequence.court.keyframes.length > 0 && (
+              <p className="hint small">
+                Hors pose : les coins grisés sur la vidéo appartiennent à la pose la plus proche —
+                clique-en un pour t’y rendre et l’ajuster.
+              </p>
+            )}
             {keyframe && !wizard && (
               <p className="hint">
                 Keyframe court à #{keyframe.t} · {Object.keys(keyframe.landmarks).length} points.

@@ -99,6 +99,31 @@ export function segmentView(traj: Trajectory, frame: number): SegmentView {
   };
 }
 
+export function nearestCourtKeyframe(court: Sequence['court'], frame: number) {
+  if (court.keyframes.length === 0) return null;
+  return court.keyframes.reduce((best, keyframe) =>
+    Math.abs(keyframe.t - frame) < Math.abs(best.t - frame) ? keyframe : best,
+  );
+}
+
+/** Landmark handles to show: the current pose, or the nearest one (dimmed). */
+export function courtHandles(view: StageView): {
+  landmarks: Record<string, Point>;
+  exact: boolean;
+  frame: number | null;
+} {
+  const court = view.sequence?.court;
+  if (!court || court.keyframes.length === 0) {
+    return { landmarks: {}, exact: false, frame: null };
+  }
+  const exactKeyframe = court.keyframes.find((k) => k.t === view.frame) ?? null;
+  const keyframe = exactKeyframe ?? nearestCourtKeyframe(court, view.frame);
+  if (!keyframe) return { landmarks: {}, exact: false, frame: null };
+  const landmarks: Record<string, Point> = {};
+  for (const [id, p] of Object.entries(keyframe.landmarks)) landmarks[id] = [p.x, p.y];
+  return { landmarks, exact: Boolean(exactKeyframe), frame: keyframe.t };
+}
+
 export function courtLandmarksOf(view: StageView): Record<string, Point> {
   const court = view.sequence?.court;
   if (!court) return {};
@@ -129,7 +154,7 @@ export function hitTest(
     }
   };
 
-  for (const [id, p] of Object.entries(courtLandmarksOf(view))) {
+  for (const [id, p] of Object.entries(courtHandles(view).landmarks)) {
     consider(p, { kind: 'landmark', landmarkId: id });
   }
   if (view.sequence) {
@@ -305,15 +330,17 @@ export function drawOverlay(
       }
     }
 
-    const landmarks = courtLandmarksOf(view);
-    for (const [id, p] of Object.entries(landmarks)) {
+    const handles = courtHandles(view);
+    for (const [id, p] of Object.entries(handles.landmarks)) {
       const selected = view.selection?.kind === 'landmark' && view.selection.landmarkId === id;
       const [x, y] = toPx(p);
       ctx.save();
+      ctx.globalAlpha = handles.exact ? 1 : 0.45;
       ctx.strokeStyle = selected ? '#ffffff' : 'rgba(0,220,255,0.9)';
       ctx.lineWidth = 2;
+      if (!handles.exact) ctx.setLineDash([3, 2]);
       ctx.beginPath();
-      ctx.arc(x, y, selected ? 8 : 6, 0, Math.PI * 2);
+      ctx.arc(x, y, selected ? 8 : handles.exact ? 6 : 5, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }

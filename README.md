@@ -166,7 +166,9 @@ Si le dépôt `../live-tennis-analyzer` est présent (ou le chemin renseigné da
   est annulable d'un `Ctrl+Z`.
 
 Chaque point affiché — y compris ceux créés par les détecteurs (`source: auto`, halo pointillé) —
-se manipule avec le même geste : appui → loupe en place ×10 → glisser → relâcher.
+se manipule avec le même geste : appui → loupe en place ×10 → glisser → relâcher. Hors d'une pose
+court, les 4 coins de la pose **la plus proche** restent visibles en pointillé grisé : en cliquer un
+saute à cette pose et ouvre la loupe dans le même geste.
 
 Les modèles tournent dans le dépôt voisin, jamais importés ici : un **worker persistant** est lancé
 au premier usage (~35 s à froid, quelques ms ensuite), arrêté après 15 min d'inactivité.
